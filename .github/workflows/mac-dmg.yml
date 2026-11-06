@@ -37,8 +37,8 @@ jobs:
       - run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Syntax
         run: for f in src/main/*.js src/preload.js scripts/*.js hooks/*.js; do node --check "$f"; done
-      - name: Hooks tests
-        run: npm run test:hooks
+      - name: JavaScript tests
+        run: npm test
       - name: Her macOS words
         run: |
           node --input-type=module -e "
@@ -65,8 +65,11 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      - name: Hooks tests
-        run: npm run test:hooks
+      - name: JavaScript tests
+        run: npm test
+
+      - name: macOS page detection tests
+        run: npm run test:mac
 
       - name: Build her helper and icon
         run: sh scripts/build-mac.sh

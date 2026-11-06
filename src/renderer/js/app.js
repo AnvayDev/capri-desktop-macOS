@@ -246,8 +246,7 @@ async function boot() {
   chat.bond = bond;
   capri.fondness = bond.stage;
   const jealousy = new Jealousy({ capri, panel, brain, bond, chat, guide, host });
-  jealousy.enabled = config.jealous !== false;
-  jealousy.closePages = config.closePages !== false;
+  jealousy.configure(config);
   chat.jealousy = jealousy;
   brain.onRival = (key) => jealousy.onRivalEvent(key);
   const reminders = new Reminders({ host, list: config.reminders || [] });
@@ -534,14 +533,15 @@ async function boot() {
   window.dev = { capri, brain, panel, chat, guide, fx, voice, bond, jealousy, reminders, look, pc, setup, screens: () => screens };
 
   host.onClaudeEvent((evt) => brain.handle(evt));
-  host.onWindows((data) => {
+  const onWindows = (data) => {
     capri.setWindows(data);
     brain.onWindows(data);
     jealousy.onWindows(data);
     pc.onWindows(data);
-  });
+  };
+  host.onWindows(onWindows);
   // the windows as they are now: the watcher only speaks again when something changes
-  host.windowsNow().then((data) => data && capri.setWindows(data));
+  host.windowsNow().then((data) => data && onWindows(data));
 
   // her window resized, or moved to another screen (whose pixels may be another size)
   let dpr = window.devicePixelRatio;
@@ -623,8 +623,6 @@ async function boot() {
 
   host.onConfig((cfg) => {
     voice.configure(cfg);
-    jealousy.enabled = cfg.jealous !== false;
-    jealousy.closePages = cfg.closePages !== false;
     followOn = cfg.follow !== false;
     look.configure(cfg);
     pc.enabled = cfg.pcReact !== false;
@@ -649,6 +647,7 @@ async function boot() {
     brain.watching = cfg.claude !== false;
     brain.custom = mine(cfg);
     brain.assistant = cfg.assistant;
+    jealousy.configure(cfg);
     panel.labels = linesFor(cfg.lang, cfg.assistant, cfg.platform);
     if (cfg.scale !== capri.scale) capri.setScale(cfg.scale);
     if (cfg.lang !== brain.lang) {

@@ -251,9 +251,10 @@ In your browser it's worse. On one of their own pages (chatgpt.com, gemini.googl
 zaps it shut: the tab closes. Click her, or *Let me*, before she does and she leaves that AI alone for ten minutes, sulking.
 On a page to download one of them, she doesn't even wait. A video or an article that just talks about them is left alone.
 
-To spot them, the title of the window in front is checked against that list of names, on your PC: it's never kept or
-sent anywhere, only the name it matched reaches her. To close a page she presses Ctrl+W for you, only if that page is
-still the one in front. Untick *Close other AIs' pages* in her menu to keep her jealous without closing anything, or
+To spot them, the title of the window in front is checked against that list of names, on your PC. On macOS she also
+checks the active page's address through Accessibility, so a conversation with a custom title still counts. Neither
+the title nor the address is saved or sent anywhere; only the matched AI reaches her. To close a page she presses
+Ctrl+W (⌘W on macOS), after checking that the requested AI page is still in front. Untick *Close other AIs' pages* in her menu to keep her jealous without closing anything, or
 *Jealous of other AIs* to stop it all.
 
 **Her chat knows what just happened.** Mad about being thrown, jealous, dizzy or happy: she greets you that way when the
@@ -312,6 +313,11 @@ macOS asks before she can do a few things, the first time she tries, and each on
 - **Accessibility**: closing other AIs' tabs (⌘W), the media keys, putting a window on half the screen.
 - **Screen Recording**: when you ask her to look at your screen or take a screenshot.
 - **Automation (System Events)**: dark mode, and shutting down or restarting when you ask her to.
+
+For Jealousy, choose **Let her close my tabs…** in her menu and enable **Capri** under **System Settings › Privacy &
+Security › Accessibility**. Keep **Jealous of other AIs** and **Close other AIs' pages** checked. Automation permission
+for Safari or Chrome is separate: it allows the tab-closing requests in her chat, but does not enable Jealousy's ⌘W.
+If a new build stops detecting pages, check that the installed Capri is still enabled in Accessibility.
 
 Build the DMG yourself on a Mac (needs the Xcode command line tools, `xcode-select --install`):
 
@@ -465,8 +471,8 @@ project's name, Claude's last action, today's counts). On one of Ollama's cloud 
 Ollama sends it on to its servers, and her chat says "online AI" instead of "local AI". Her mission log stays in her own storage on your PC, like your
 reminders and where you two stand.
 
-The title of the window in front of you is only checked, on your PC, against a list of AI names (for her jealousy):
-it's never kept or sent anywhere.
+The title of the window in front of you, and on macOS the active browser page's address, are only checked locally
+against a list of AI names and sites (for her jealousy). Neither is saved or sent anywhere.
 
 When she looks at your screen (only when you ask, or if you ticked *Look at my screen now and then*), a picture of the
 screen goes to her chat's AI: on your PC with Ollama (a local model), to the online service otherwise. It's never written to disk.
