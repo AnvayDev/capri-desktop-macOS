@@ -93,22 +93,26 @@ let BROWSER_IDS: [String] = [
 ]
 let BROWSER_NAMES: Set<String> = [
   "google chrome", "microsoft edge", "firefox", "brave browser", "opera", "opera gx", "vivaldi", "arc", "dia", "chromium",
-  "safari", "librewolf", "waterfox", "floorp", "zen", "zen browser", "orion", "thorium",
+  "safari", "librewolf", "waterfox", "floorp", "zen", "zen browser", "orion", "thorium", "comet", "helium", "sigmaos",
+  "sidekick", "duckduckgo", "yandex", "whale", "island", "ecosia",
 ]
-
-// Any app macOS would open a web link in is a browser (Comet, Helium, Orion...), whatever its name.
-var webApps: Set<String> = []
-var webAppsAt = Date.distantPast
+// more browsers, by their bundle id (only real browsers: never "any app that opens links")
+let MORE_BROWSER_IDS: [String] = [
+  "ai.perplexity.comet", "net.imput.helium", "com.sigmaos.sigmaos", "com.pushplaylabs.sidekick", "com.duckduckgo.macos.browser",
+  "ru.yandex.desktop.yandex-browser", "com.naver.Whale", "io.island.Island", "org.ecosia.ecosia",
+]
+// Gecko browsers draw their own address bar: looking into them would start their whole accessibility engine
+let GECKO_IDS: [String] = ["org.mozilla.", "io.gitlab.librewolf", "net.waterfox", "one.ablaze.floorp", "app.zen-browser"]
 
 func isBrowser(_ app: NSRunningApplication?) -> Bool {
   guard let app = app else { return false }
-  if let id = app.bundleIdentifier, BROWSER_IDS.contains(where: { id.hasPrefix($0) }) { return true }
-  if BROWSER_NAMES.contains((app.localizedName ?? "").lowercased()) { return true }
-  if Date().timeIntervalSince(webAppsAt) > 60, let link = URL(string: "https://example.com") {
-    webAppsAt = Date()
-    webApps = Set(NSWorkspace.shared.urlsForApplications(toOpen: link).compactMap { Bundle(url: $0)?.bundleIdentifier })
-  }
-  return app.bundleIdentifier.map { webApps.contains($0) } ?? false
+  if let id = app.bundleIdentifier, (BROWSER_IDS + MORE_BROWSER_IDS).contains(where: { id.hasPrefix($0) }) { return true }
+  return BROWSER_NAMES.contains((app.localizedName ?? "").lowercased())
+}
+
+func isGecko(_ app: NSRunningApplication?) -> Bool {
+  guard let id = app?.bundleIdentifier else { return false }
+  return GECKO_IDS.contains { id.hasPrefix($0) }
 }
 
 // Their own sites, by address: a ChatGPT conversation's tab is titled with the conversation, not "ChatGPT".
@@ -127,7 +131,7 @@ func siteOf(_ address: String?) -> String? {
 
 func axValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
   // A timeout on the application does not apply to its window or children.
-  AXUIElementSetMessagingTimeout(element, 0.1)
+  AXUIElementSetMessagingTimeout(element, 0.15)
   var value: CFTypeRef?
   return AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success ? value : nil
 }
@@ -139,6 +143,16 @@ func addressOf(_ value: Any?) -> String? {
   return text
 }
 
+// What the address bar shows ("chatgpt.com", "chatgpt.com/c/123", "https://claude.ai/new"), as an
+// address, if that's what it is (not a search being typed, not a placeholder)
+func barAddress(_ value: Any?) -> String? {
+  guard let raw = (value as? String)?.trimmingCharacters(in: .whitespaces), !raw.isEmpty, !raw.contains(" ") else { return nil }
+  let full = raw.lowercased().hasPrefix("http") ? raw : "https://" + raw
+  guard let host = URL(string: full)?.host?.lowercased(),
+        host.range(of: #"^[a-z0-9.-]+\.[a-z]{2,}$"#, options: .regularExpression) != nil else { return nil }
+  return addressOf(full)
+}
+
 // Walk the current window, never a retained web area from a previous tab. Do not enter web areas:
 // an embedded AI frame on an unrelated site is not the page itself. Visible children exclude
 // background tabs in browsers that expose them; ambiguous page trees are left alone.
@@ -148,14 +162,22 @@ func pageAddress<Element>(_ window: Element, read: (Element, String) -> Any?,
   var queue: [(Element, Int)] = [(window, 0)]
   var index = 0
   var found: String?
+  var bar: String?          // the address bar's text, for when the page itself can't be read
+  var unreadable = false    // a page with no address to read (loading, or the browser keeps it to itself)
   while index < queue.count && index < 500 && !expired() {
     let (element, depth) = queue[index]
     index += 1
     if (read(element, "AXHidden") as? Bool) == true { continue }
-    if (read(element, kAXRoleAttribute) as? String) == "AXWebArea" {
-      guard let url = addressOf(read(element, kAXURLAttribute)) else { return (nil, false) }
+    let role = read(element, kAXRoleAttribute) as? String
+    if role == "AXWebArea" {
+      // never into the page: only its own address
+      guard let url = addressOf(read(element, kAXURLAttribute)) else { unreadable = true; continue }
       if let other = found, other != url { return (nil, false) }
       found = url
+      continue
+    }
+    if bar == nil && (role == "AXTextField" || role == "AXComboBox"), let url = barAddress(read(element, kAXValueAttribute)) {
+      bar = url
       continue
     }
     let next = children(element)
@@ -164,52 +186,56 @@ func pageAddress<Element>(_ window: Element, read: (Element, String) -> Any?,
       queue += next.map { ($0, depth + 1) }
     }
   }
-  return expired() ? (nil, false) : (found, true)
+  if expired() { return (nil, false) }
+  if let url = found { return (url, true) }
+  if let url = bar { return (url, true) }
+  return unreadable ? (nil, false) : (nil, true)
 }
 
-var manual: Set<pid_t> = []
-var address: String?
-var addressWin = 0
-var addressPid: pid_t = 0
-var addressAt = Date.distantPast
-var addressTimedOut = false
-var addressComplete = true
-
-func frontAddress(_ fg: Win?, fresh: Bool = false) -> String? {
-  guard let fg = fg, AXIsProcessTrusted() else { addressComplete = false; return nil }
-  if !fresh && fg.id == addressWin && fg.pid == addressPid && Date().timeIntervalSince(addressAt) < 0.5 { return address }
-  addressWin = fg.id
-  addressPid = fg.pid
-  addressAt = Date()
-  address = nil
-  addressTimedOut = false
-  addressComplete = false
-  // Leave time for the watcher's three-second request timeout, even for an unresponsive browser.
+// The page in front's address, read through Accessibility without ever asking the browser to build
+// more than it already shows (no "manual accessibility": that slows browsers and apps down), on a
+// background thread so a busy browser never holds her up. (url, complete, timedOut)
+func readAddress(_ pid: pid_t, gecko: Bool) -> (url: String?, complete: Bool, timedOut: Bool) {
+  if gecko { return (nil, true, false) } // their titles say enough
   let deadline = ProcessInfo.processInfo.systemUptime + 0.7
   let expired = { () -> Bool in ProcessInfo.processInfo.systemUptime >= deadline }
   let read = { (element: AXUIElement, attribute: String) -> Any? in
     return expired() ? nil : axValue(element, attribute)
   }
-  let app = AXUIElementCreateApplication(fg.pid)
-  AXUIElementSetMessagingTimeout(app, 0.1)
-  if !manual.contains(fg.pid) {
-    if AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success {
-      manual.insert(fg.pid)
-    }
-  }
+  let app = AXUIElementCreateApplication(pid)
   guard let w = read(app, kAXFocusedWindowAttribute), CFGetTypeID(w as CFTypeRef) == AXUIElementGetTypeID() else {
-    addressTimedOut = expired()
-    return nil
+    return (nil, false, expired())
   }
-  let win = w as! AXUIElement
-  let result = pageAddress(win, read: read, children: { element in
+  let result = pageAddress(w as! AXUIElement, read: read, children: { element in
     return (read(element, kAXVisibleChildrenAttribute) as? [AXUIElement])
       ?? (read(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []
   }, expired: expired)
-  address = result.url
-  addressComplete = result.complete
-  addressTimedOut = expired()
-  return address
+  return (result.url, result.complete, expired())
+}
+
+let addressQueue = DispatchQueue(label: "capri.address")
+// the last read: good for that window, of that app, with that title only (another tab, another title)
+var addressRead: (win: Int, pid: pid_t, title: String, url: String?, complete: Bool, at: Date)?
+var addressBusy = false
+
+func refreshAddress(_ fg: Win, title: String, gecko: Bool) {
+  guard !addressBusy, AXIsProcessTrusted() else { return }
+  if let r = addressRead, r.win == fg.id, r.pid == fg.pid, r.title == title, Date().timeIntervalSince(r.at) < 1.0 { return }
+  addressBusy = true
+  let (win, pid) = (fg.id, fg.pid)
+  addressQueue.async {
+    let found = readAddress(pid, gecko: gecko)
+    DispatchQueue.main.async {
+      addressRead = (win, pid, title, found.url, found.complete, Date())
+      addressBusy = false
+    }
+  }
+}
+
+// (address, complete) for the window in front as last read, or (nil, false) while it's being read
+func cachedAddress(_ fg: Win?, title: String) -> (url: String?, complete: Bool) {
+  guard let fg = fg, let r = addressRead, r.win == fg.id, r.pid == fg.pid, r.title == title else { return (nil, false) }
+  return (r.url, r.complete)
 }
 
 // An address, when available, takes precedence over words in a conversation's title.
@@ -505,6 +531,8 @@ func mediaKey(_ key: Int) -> Bool {
 
 // MARK: - the watch
 
+// the host of the page in front, in the snapshot: only for the build's own checks (CI)
+let DEBUG_ADDRESS = ProcessInfo.processInfo.environment["CAPRI_DEBUG_ADDRESS"] == "1"
 var capriPid: pid_t = 0
 var overlayId = 0
 var frontPid: pid_t = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
@@ -541,17 +569,19 @@ func snapshot() -> (String, Win?) {
   let t = frontTitle(fg)
   let name = (app?.localizedName ?? "").lowercased()
   let browser = isBrowser(app)
-  let page = browser ? frontAddress(fg) : nil
-  let detected = detectsAI(t, name: name, browser: browser && addressComplete, address: page)
+  if browser, let fg = fg { refreshAddress(fg, title: t, gecko: isGecko(app)) }
+  let page = browser ? cachedAddress(fg, title: t) : (url: nil, complete: false)
+  let detected = detectsAI(t, name: name, browser: browser && page.complete, address: page.url)
   var list: [[String: Any]] = []
   for w in wins.prefix(40) {
     if w.rect.width < 200 || w.rect.height < 120 { continue }
     list.append(["id": w.id, "x": Int(w.rect.origin.x), "y": Int(w.rect.origin.y), "w": Int(w.rect.width), "h": Int(w.rect.height), "pid": Int(w.pid)])
   }
-  let snap: [String: Any] = [
+  var snap: [String: Any] = [
     "fg": fgId, "fgPid": Int(frontPid), "taskbar": false, "ai": detected.keys, "pages": detected.pages, "dl": detected.download,
     "game": gameOf(app).map { $0 as Any } ?? NSNull(), "usb": usb(), "plug": plug, "wins": list,
   ]
+  if DEBUG_ADDRESS { snap["host"] = page.url.flatMap { URL(string: $0)?.host }.map { $0 as Any } ?? NSNull() }
   return (json(snap), fg)
 }
 
@@ -576,10 +606,11 @@ func closePage(_ id: Int, _ key: String) -> String {
   guard let fg = wins.first(where: { $0.pid == pid }), fg.id == id else { return "front" }
   guard isBrowser(app) else { return "browser" }
   titleAt = Date.distantPast
-  let currentAddress = frontAddress(fg, fresh: true)
-  if addressTimedOut { return "late" }
-  if !addressComplete { return "page" }
-  guard canClosePage(key, title: frontTitle(fg), address: currentAddress) else { return "page" }
+  // read again right now, not the last tick's: a tab switch a moment ago must not close the wrong one
+  let now = readAddress(pid, gecko: isGecko(app))
+  if now.timedOut { return "late" }
+  if !now.complete { return "page" }
+  guard canClosePage(key, title: frontTitle(fg), address: now.url) else { return "page" }
   let code = keyCode("w", fallback: 13)
   // Accessibility may have taken time. Check the live foreground again, not the last timer tick.
   guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
@@ -588,7 +619,7 @@ func closePage(_ id: Int, _ key: String) -> String {
   if !held.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]).isEmpty { return "keys" }
   guard AXIsProcessTrusted() else { return "access" }
   let sent = press(code, flags: .maskCommand, pid: pid)
-  addressAt = Date.distantPast
+  addressRead = nil
   titleAt = Date.distantPast
   return sent ? "" : "error"
 }
@@ -607,6 +638,7 @@ func listenForAsks() {
 }
 
 func watch() {
+  AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25) // a stuck app can't stall her
   _ = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
     if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
       frontPid = app.processIdentifier

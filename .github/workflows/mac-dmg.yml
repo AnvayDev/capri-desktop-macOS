@@ -97,6 +97,31 @@ jobs:
           print(f"watch ok: {len(lines)} snapshot(s), {len(snap['wins'])} window(s), fg={snap['fg']}")
           EOF
 
+      - name: Helper reads a browser's address without stalling
+        run: |
+          set -e
+          H=native/mac/build/capri-helper
+          for B in Safari "Google Chrome"; do
+            [ -d "/Applications/$B.app" ] || { echo "no $B here"; continue; }
+            open -a "$B" https://example.com
+            sleep 8
+            osascript -e "tell application \"$B\" to activate" || true
+            sleep 2
+            # the watch for 6 s, asked to close a page that isn't there halfway: it must answer at once
+            ( sleep 3; echo "close 1 chatgpt 7"; sleep 3; echo ) | CAPRI_DEBUG_ADDRESS=1 "$H" watch $$ 0 > "addr.jsonl"
+            B="$B" python3 - <<'EOF'
+          import json, os
+          lines = [json.loads(l) for l in open('addr.jsonl') if l.strip()]
+          snaps = [l for l in lines if 'wins' in l]
+          answer = [l for l in lines if l.get('closed') == 7]
+          assert answer, 'the close question got no answer: the helper is stuck'
+          hosts = {s.get('host') for s in snaps}
+          print(os.environ['B'], '| snapshots:', len(snaps), '| hosts read:', hosts, '| close answered:', answer[0]['why'])
+          assert 'example.com' in hosts, 'the address bar was not read'
+          EOF
+            osascript -e "tell application \"$B\" to quit" || true
+          done
+
       - name: Build the DMG
         # This build uses an ad-hoc identity, with no certificate or signing secrets.
         # electron-builder otherwise skips even ad-hoc signing on pull requests.

@@ -67,4 +67,17 @@ window.children = (0..<501).map { _ in PageNode() }
 check(!readPage(window).complete, "bounded tree traversal")
 window.children = []
 check(readPage(window).complete && readPage(window).url == nil, "unsupported URL exposes title fallback")
+// the address bar, when the page itself keeps its address to itself (no forced accessibility)
+check(barAddress("chatgpt.com/c/123") == "https://chatgpt.com/c/123", "address bar without a scheme")
+check(barAddress("https://claude.ai/new") == "https://claude.ai/new", "address bar with a scheme")
+check(barAddress("Search or type URL") == nil, "placeholder is no address")
+check(barAddress("how to cook rice") == nil, "a search being typed is no address")
+check(barAddress("e.g") == nil, "not a host")
+let field = PageNode("AXTextField")
+field.attrs[kAXValueAttribute] = "chatgpt.com/c/123"
+window.children = [PageNode("AXToolbar", children: [field]), PageNode("AXWebArea")]
+check(readPage(window).url == "https://chatgpt.com/c/123" && readPage(window).complete, "unreadable page: the address bar says")
+window.children = [PageNode("AXToolbar", children: [field]), PageNode("AXWebArea", url: "https://example.org/")]
+check(readPage(window).url == "https://example.org/", "the page's own address wins over the bar")
+check(!canClosePage("chatgpt", title: "ChatGPT", address: readPage(window).url), "and then nothing to close")
 print("macOS page tests: \(checks) checks passed")

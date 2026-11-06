@@ -13,15 +13,19 @@ const BROWSERS = [
   ['Arc', 'title'], ['Vivaldi', 'title'], ['Chromium', 'title'], ['Opera', 'title'],
 ];
 
-const running = (name) => mac.osascript(`application ${mac.asString(name)} is running`, 5000).then((r) => r === 'true', () => false);
+// The browsers open now, by asking her helper (never AppleScript by name: for an app that isn't
+// installed, macOS pops up a "Where is it?" window).
+async function openBrowsers() {
+  const names = new Set(JSON.parse(await mac.run(['apps', 0]).catch(() => '[]') || '[]').map((a) => a.name));
+  return BROWSERS.filter(([app]) => names.has(app));
+}
 
 // { closed, browsers: [names], denied: [names macOS didn't let her control] }
 async function closeTabs(query) {
   const q = String(query || '').trim().slice(0, 100);
   if (!mac.MAC || q.length < 2) return null;
   const result = { closed: 0, browsers: [], denied: [] };
-  for (const [app, title] of BROWSERS) {
-    if (!(await running(app))) continue;
+  for (const [app, title] of await openBrowsers()) {
     const script = `set q to ${mac.asString(q)}
 set n to 0
 tell application ${mac.asString(app)}
@@ -54,8 +58,7 @@ return n`;
 // { allowed: [names], denied: [names], none: true when no browser she knows is open }
 async function askAccess() {
   const result = { allowed: [], denied: [], none: false };
-  for (const [app] of BROWSERS) {
-    if (!(await running(app))) continue;
+  for (const [app] of await openBrowsers()) {
     try {
       await mac.osascript(`tell application ${mac.asString(app)} to count windows`, 60000); // the prompt waits for you
       result.allowed.push(app);

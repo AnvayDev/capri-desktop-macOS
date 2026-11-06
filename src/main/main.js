@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const {
   app, BrowserWindow, Tray, Menu, ipcMain, screen, protocol, net, shell, globalShortcut, nativeImage,
-  clipboard, ClipboardItem, dialog, powerMonitor, desktopCapturer,
+  clipboard, ClipboardItem, dialog, powerMonitor, desktopCapturer, systemPreferences,
 } = require('electron');
 const { randomUUID } = require('node:crypto');
 
@@ -691,6 +691,12 @@ async function chatWithFallback(cfg, messages, send, signal, streamed) {
 // for her AI to look at, never written anywhere. 1280 px wide at most: enough to read, light to send.
 const snaps = new Map(); // id -> the picture, base64 JPEG
 async function snapScreen() {
+  // macOS: without Screen Recording she'd get your wallpaper and nothing else, and every new build
+  // of her needs it given again (her signature changes): say so, and open the right page
+  if (mac.MAC && systemPreferences.getMediaAccessStatus('screen') === 'denied') {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    throw new Error('macOS won’t let me see your screen. In Screen Recording, remove Capri with −, add her back with +, then reopen me');
+  }
   const d = targetDisplay();
   const k = d.scaleFactor || 1;
   const fit = Math.min(1, 1280 / (d.bounds.width * k));

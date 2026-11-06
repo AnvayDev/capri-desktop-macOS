@@ -6,7 +6,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, shell, desktopCapturer, screen } = require('electron');
+const { app, shell, desktopCapturer, screen, systemPreferences } = require('electron');
 const { execFile } = require('node:child_process');
 const { powershell } = require('./apps');
 
@@ -150,6 +150,10 @@ async function open(file, { reveal = false } = {}) {
 
 // A screenshot of the screen she's on, full size, saved in Pictures › Screenshots (made if needed).
 async function screenshot(display) {
+  if (MAC && systemPreferences.getMediaAccessStatus('screen') === 'denied') {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    throw new Error('no Screen Recording permission');
+  }
   const d = display || screen.getPrimaryDisplay();
   const k = d.scaleFactor || 1;
   const size = { width: Math.round(d.bounds.width * k), height: Math.round(d.bounds.height * k) };
