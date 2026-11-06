@@ -324,6 +324,14 @@ It lands in `dist/`. To sign and notarize it with your own Apple Developer ID, s
 certificate's name and `hardenedRuntime` to `true` in `package.json`, and run it with `APPLE_ID`,
 `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` set: macOS then opens it without asking.
 
+On a Mac she can also close browser tabs when you ask her in her chat ("close my YouTube tabs"): in Safari, Chrome,
+Edge, Brave, Arc, Vivaldi and Opera, behind a button, after macOS asks once per browser (Automation). Opening a site is
+her usual "open youtube.com".
+
+This fork keeps up with the original by itself: every day the **Sync from the original Capri** workflow merges its new
+work into `main` and builds a fresh DMG. If that clashes with the Mac changes, it opens an issue instead. It needs
+Settings › Actions › General › Workflow permissions › **Read and write permissions**.
+
 ### What's Claude Code? Do I need it?
 
 [Claude Code](https://code.claude.com/docs/en/quickstart) is Anthropic's coding assistant: in a terminal, in VS Code,

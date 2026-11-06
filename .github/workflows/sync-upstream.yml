@@ -1,0 +1,76 @@
+name: Sync from the original Capri
+
+# Every day, the original repo's new work (mochiiwuff/capri-desktop) merged into this fork's main,
+# then a fresh Mac DMG built from it. When the merge clashes with the Mac changes here, nothing is
+# pushed: an issue says so, to merge by hand. Needs Settings › Actions › General › Workflow
+# permissions › "Read and write permissions".
+
+on:
+  schedule:
+    - cron: '17 9 * * *' # every day, 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      merged: ${{ steps.merge.outputs.merged }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge the original's main
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: mochiiwuff/capri-desktop
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream "https://github.com/$UPSTREAM.git"
+          git fetch upstream
+          BRANCH=$(git remote show upstream | sed -n 's/.*HEAD branch: //p')
+          echo "original's branch: $BRANCH"
+          if git merge-base --is-ancestor "upstream/$BRANCH" HEAD; then
+            echo 'already up to date'
+            echo 'merged=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git merge --no-edit "upstream/$BRANCH"; then
+            git push origin HEAD:main
+            echo 'merged=true' >> "$GITHUB_OUTPUT"
+            echo "merged: $(git log -1 --format=%s "upstream/$BRANCH")"
+          else
+            FILES=$(git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/')
+            git merge --abort
+            TITLE="Sync from $UPSTREAM needs a hand"
+            if [ -z "$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[].number')" ]; then
+              gh issue create --title "$TITLE" --body "The original repo has new work that clashes with the Mac changes here, so the daily sync didn't merge it. Files in conflict:
+
+          $FILES
+
+          To merge it by hand: \`git fetch https://github.com/$UPSTREAM.git $BRANCH && git merge FETCH_HEAD\`, fix the conflicts, push. The next sync closes nothing by itself: close this issue once it's done."
+            fi
+            echo 'merged=false' >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+  # a push by this workflow doesn't start the others: the DMG built here
+  dmg:
+    needs: sync
+    if: needs.sync.outputs.merged == 'true'
+    uses: ./.github/workflows/mac-dmg.yml
+    with:
+      ref: main

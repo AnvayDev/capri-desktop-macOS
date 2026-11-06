@@ -22,6 +22,7 @@ const system = require('./system');
 const launch = require('./launch');
 const files = require('./files');
 const mac = require('./mac');
+const tabs = require('./tabs');
 const { ASSISTANTS, assistant } = require('./assistants');
 const activeAssistant = () => assistant(config.load().assistant); // Claude Code or Codex
 const activeHooks = () => activeAssistant().hooks;
@@ -901,6 +902,8 @@ function registerIpc() {
   ipcMain.handle('pc:do', (_e, req) => Promise.resolve(system.act(req, { display: targetDisplay() })).catch(() => null));
   ipcMain.handle('apps:music', (_e, query) => launch.music(query).catch(() => false));
   ipcMain.handle('apps:site', (_e, address) => launch.site(address).catch(() => false));
+  // closing browser tabs by what's in them (tabs.js, macOS)
+  ipcMain.handle('tabs:close', (_e, query) => tabs.closeTabs(query).catch(() => null));
   // typing to her: the overlay takes the keyboard while the chat is open, and gives it back after
   ipcMain.on('overlay:focus', (_e, on) => {
     if (!overlay) return;

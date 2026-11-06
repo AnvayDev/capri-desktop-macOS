@@ -92,7 +92,7 @@ export const LINES = {
       notFound: 'Je ne vois pas « {app} » ouvert sur ton PC.',
       // ouvrir une appli ou un jeu, la musique, un site
       openIt: 'Ouvrir {app}', opened: '{app} : c’est parti.', notInstalled: 'Je ne trouve pas « {app} » sur ton PC.',
-      music: 'Je cherche « {song} » sur Spotify.', siteIt: 'Ouvrir {site}', siteOpened: '{site} : ouvert.',
+      music: 'Je cherche « {song} » sur Spotify.', siteIt: 'Ouvrir {site}', siteOpened: '{site} : ouvert.', tabsIt: "Fermer les onglets « {query} »", tabsClosed: "{count} onglet(s) fermé(s).", tabsNone: "Aucun onglet « {query} » ouvert.", tabsDenied: "macOS ne me laisse pas toucher à {browsers} : autorise-moi dans Réglages › Confidentialité et sécurité › Automatisation.",
       youtube: 'C’est parti : {title}.', youtubeSearch: 'Je te cherche « {song} » sur YouTube.',
       web: 'Je cherche « {query} » sur Google.',
       robloxPlay: 'Je te lance {game} sur Roblox.', robloxPage: '{game} : je t’ouvre sa page Roblox.', robloxNone: 'Je ne trouve pas « {game} » sur Roblox.',
@@ -474,7 +474,7 @@ export const LINES = {
       notFound: 'I don’t see “{app}” open on your PC.',
       // opening an app or a game, the music, a website
       openIt: 'Open {app}', opened: '{app}: on it.', notInstalled: 'I can’t find “{app}” on your PC.',
-      music: 'Looking up “{song}” on Spotify.', siteIt: 'Open {site}', siteOpened: '{site}: open.',
+      music: 'Looking up “{song}” on Spotify.', siteIt: 'Open {site}', siteOpened: '{site}: open.', tabsIt: "Close “{query}” tabs", tabsClosed: "Closed {count} tab(s).", tabsNone: "No “{query}” tabs open.", tabsDenied: "macOS won’t let me touch {browsers}: allow me in Settings › Privacy & Security › Automation.",
       youtube: 'Here you go: {title}.', youtubeSearch: 'Looking up “{song}” on YouTube.',
       web: 'Searching “{query}” on Google.',
       robloxPlay: 'Starting {game} on Roblox for you.', robloxPage: '{game}: opening its Roblox page.', robloxNone: 'Can’t find “{game}” on Roblox.',
@@ -852,7 +852,7 @@ export const LINES = {
       notFound: 'No veo «{app}» abierta en tu PC.',
       // abrir una app o un juego, la música, una web
       openIt: 'Abrir {app}', opened: '{app}: en marcha.', notInstalled: 'No encuentro «{app}» en tu PC.',
-      music: 'Busco «{song}» en Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: abierta.',
+      music: 'Busco «{song}» en Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: abierta.', tabsIt: "Cerrar pestañas «{query}»", tabsClosed: "{count} pestaña(s) cerrada(s).", tabsNone: "No hay pestañas «{query}» abiertas.", tabsDenied: "macOS no me deja tocar {browsers}: permíteme en Ajustes › Privacidad y seguridad › Automatización.",
       youtube: 'Ahí va: {title}.', youtubeSearch: 'Te busco «{song}» en YouTube.',
       web: 'Busco «{query}» en Google.',
       robloxPlay: 'Te lanzo {game} en Roblox.', robloxPage: '{game}: te abro su página de Roblox.', robloxNone: 'No encuentro «{game}» en Roblox.',
@@ -1229,7 +1229,7 @@ export const LINES = {
       notFound: 'Não vejo “{app}” aberto no seu PC.',
       // abrir um app ou um jogo, a música, um site
       openIt: 'Abrir {app}', opened: '{app}: abrindo.', notInstalled: 'Não acho “{app}” no seu PC.',
-      music: 'Procurando “{song}” no Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: aberto.',
+      music: 'Procurando “{song}” no Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: aberto.', tabsIt: "Fechar abas “{query}”", tabsClosed: "{count} aba(s) fechada(s).", tabsNone: "Nenhuma aba “{query}” aberta.", tabsDenied: "O macOS não me deixa mexer no {browsers}: me libere em Ajustes › Privacidade e Segurança › Automação.",
       youtube: 'Lá vai: {title}.', youtubeSearch: 'Vou procurar “{song}” no YouTube.',
       web: 'Procurando “{query}” no Google.',
       robloxPlay: 'Tô abrindo {game} no Roblox.', robloxPage: '{game}: abrindo a página no Roblox.', robloxNone: 'Não achei “{game}” no Roblox.',
@@ -1606,7 +1606,7 @@ export const LINES = {
       notFound: 'Не вижу «{app}» среди открытых на твоём ПК.',
       // открыть приложение или игру, музыка, сайт
       openIt: 'Открыть {app}', opened: '{app}: запускаю.', notInstalled: 'Не нахожу «{app}» на твоём ПК.',
-      music: 'Ищу «{song}» в Spotify.', siteIt: 'Открыть {site}', siteOpened: '{site}: открыт.',
+      music: 'Ищу «{song}» в Spotify.', siteIt: 'Открыть {site}', siteOpened: '{site}: открыт.', tabsIt: "Закрыть вкладки «{query}»", tabsClosed: "Закрыто вкладок: {count}.", tabsNone: "Вкладок «{query}» не открыто.", tabsDenied: "macOS не даёт мне трогать {browsers}: разреши в Настройках › Конфиденциальность и безопасность › Автоматизация.",
       youtube: 'Держи: {title}.', youtubeSearch: 'Ищу «{song}» на YouTube.',
       web: 'Ищу «{query}» в Google.',
       robloxPlay: 'Запускаю {game} в Roblox.', robloxPage: '{game}: открываю страницу в Roblox.', robloxNone: 'Не нахожу «{game}» в Roblox.',

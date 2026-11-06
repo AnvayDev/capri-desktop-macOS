@@ -10,6 +10,13 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+  # the daily sync (sync-upstream.yml) builds the DMG of what it merged
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -21,6 +28,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -46,6 +55,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
