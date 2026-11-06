@@ -49,4 +49,22 @@ return n`;
   return result;
 }
 
-module.exports = { closeTabs };
+// Asks each browser that's open for something harmless (how many windows it has), so macOS asks you
+// right away whether Capri may control it, and she shows up in Privacy & Security › Automation.
+// { allowed: [names], denied: [names], none: true when no browser she knows is open }
+async function askAccess() {
+  const result = { allowed: [], denied: [], none: false };
+  for (const [app] of BROWSERS) {
+    if (!(await running(app))) continue;
+    try {
+      await mac.osascript(`tell application ${mac.asString(app)} to count windows`, 60000); // the prompt waits for you
+      result.allowed.push(app);
+    } catch {
+      result.denied.push(app);
+    }
+  }
+  result.none = !result.allowed.length && !result.denied.length;
+  return result;
+}
+
+module.exports = { closeTabs, askAccess };

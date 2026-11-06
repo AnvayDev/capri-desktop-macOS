@@ -325,7 +325,7 @@ certificate's name and `hardenedRuntime` to `true` in `package.json`, and run it
 `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` set: macOS then opens it without asking.
 
 On a Mac she can also close browser tabs when you ask her in her chat ("close my YouTube tabs"): in Safari, Chrome,
-Edge, Brave, Arc, Vivaldi and Opera, behind a button, after macOS asks once per browser (Automation). Opening a site is
+Edge, Brave, Arc, Vivaldi and Opera, behind a button, after macOS asks once per browser (Automation). Her menu › **Let her close my tabs…** asks every open browser at once. Opening a site is
 her usual "open youtube.com".
 
 This fork keeps up with the original by itself: every day the **Sync from the original Capri** workflow merges its new

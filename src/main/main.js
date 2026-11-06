@@ -337,6 +337,8 @@ function rebuildTray() {
   // on a Mac she rests on the Dock, not a taskbar
   const DOCK = { fr: 'Assise sur le Dock', en: 'Sitting on the Dock', es: 'Sentada en el Dock', pt: 'Sentada no Dock', ru: 'Сидит на Dock' };
   if (mac.MAC) t.restTaskbar = DOCK[resolveLang(cfg.lang)] || DOCK.en;
+  const TABS = { fr: 'La laisser fermer mes onglets…', en: 'Let her close my tabs…', es: 'Dejarla cerrar mis pestañas…', pt: 'Deixar ela fechar minhas abas…', ru: 'Разрешить ей закрывать вкладки…' };
+  const tabsItem = mac.MAC ? [{ label: TABS[resolveLang(cfg.lang)] || TABS.en, click: allowTabs }] : [];
 
   const screens = displays();
   const current = targetDisplay().id;
@@ -453,6 +455,7 @@ function rebuildTray() {
       label: t.closePages, type: 'checkbox', checked: cfg.closePages !== false, enabled: cfg.jealous !== false,
       click: (item) => updateConfig({ closePages: item.checked }),
     },
+    ...tabsItem,
     { label: t.pcReact, type: 'checkbox', checked: cfg.pcReact !== false, click: (item) => updateConfig({ pcReact: item.checked }) },
     {
       // she asks first (what she'll send where), then turns it on herself
@@ -535,6 +538,20 @@ function rebuildTray() {
   ]);
   tray.setContextMenu(menu);
   trayMenu = menu;
+}
+
+// macOS: each open browser asked once, so macOS shows its "Capri wants to control…" prompt now;
+// if one was refused before, its settings page opens where she can be switched on.
+async function allowTabs() {
+  const res = await tabs.askAccess();
+  const lines = [];
+  if (res.none) lines.push('Open Safari, Chrome, Edge, Brave, Arc, Vivaldi or Opera first, then try again.');
+  if (res.allowed.length) lines.push(`She can close tabs in: ${res.allowed.join(', ')}.`);
+  if (res.denied.length) {
+    lines.push(`Not allowed yet: ${res.denied.join(', ')}. Switch Capri on under each of them in Privacy & Security › Automation.`);
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation');
+  }
+  dialog.showMessageBox({ type: res.denied.length || res.none ? 'warning' : 'info', message: 'Capri and your tabs', detail: lines.join('\n') });
 }
 
 // Run from a clone (`npm start`), electron.exe alone would open the default Electron app at login:
