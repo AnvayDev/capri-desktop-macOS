@@ -98,7 +98,12 @@ jobs:
           EOF
 
       - name: Build the DMG
-        run: npx electron-builder --mac --universal --publish never
+        # This build uses an ad-hoc identity, with no certificate or signing secrets.
+        # electron-builder otherwise skips even ad-hoc signing on pull requests.
+        env:
+          CSC_FOR_PULL_REQUEST: 'true'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --universal --publish never -c.mac.identity=-
 
       - name: Check the DMG and the app in it
         run: |
