@@ -96,10 +96,89 @@ let BROWSER_NAMES: Set<String> = [
   "safari", "librewolf", "waterfox", "floorp", "zen", "zen browser", "orion", "thorium",
 ]
 
+// Any app macOS would open a web link in is a browser (Comet, Helium, Orion...), whatever its name.
+var webApps: Set<String> = []
+var webAppsAt = Date.distantPast
+
 func isBrowser(_ app: NSRunningApplication?) -> Bool {
   guard let app = app else { return false }
   if let id = app.bundleIdentifier, BROWSER_IDS.contains(where: { id.hasPrefix($0) }) { return true }
-  return BROWSER_NAMES.contains((app.localizedName ?? "").lowercased())
+  if BROWSER_NAMES.contains((app.localizedName ?? "").lowercased()) { return true }
+  if Date().timeIntervalSince(webAppsAt) > 60, let link = URL(string: "https://example.com") {
+    webAppsAt = Date()
+    webApps = Set(NSWorkspace.shared.urlsForApplications(toOpen: link).compactMap { Bundle(url: $0)?.bundleIdentifier })
+  }
+  return app.bundleIdentifier.map { webApps.contains($0) } ?? false
+}
+
+// Their own sites, by address: a ChatGPT conversation's tab is titled with the conversation, not "ChatGPT".
+let AI_HOSTS: [(key: String, hosts: [String])] = [
+  ("chatgpt", ["chatgpt.com", "chat.openai.com"]), ("claude", ["claude.ai"]), ("gemini", ["gemini.google.com", "aistudio.google.com"]),
+  ("copilot", ["copilot.microsoft.com"]), ("perplexity", ["perplexity.ai"]), ("deepseek", ["chat.deepseek.com"]),
+  ("grok", ["grok.com"]), ("lechat", ["chat.mistral.ai"]), ("characterai", ["character.ai"]), ("metaai", ["meta.ai"]),
+]
+
+func siteOf(_ address: String?) -> String? {
+  guard let host = address.flatMap({ URL(string: $0)?.host?.lowercased() }) else { return nil }
+  return AI_HOSTS.first { $0.hosts.contains { host == $0 || host.hasSuffix("." + $0) } }?.key
+}
+
+func axValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+  var value: CFTypeRef?
+  return AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success ? value : nil
+}
+
+func addressOf(_ value: CFTypeRef?) -> String? {
+  if let url = value as? URL { return url.absoluteString }
+  if let text = value as? String, text.hasPrefix("http") { return text }
+  return nil
+}
+
+// The address of the page in the browser window in front, through Accessibility: its web area,
+// found once per window then read again (Chromium browsers build theirs only when asked).
+var webAreas: [Int: AXUIElement] = [:]
+var manual: Set<pid_t> = []
+var address: String?
+var addressWin = 0
+var addressAt = Date.distantPast
+
+func frontAddress(_ fg: Win?) -> String? {
+  guard let fg = fg, AXIsProcessTrusted() else { return nil }
+  if fg.id == addressWin && Date().timeIntervalSince(addressAt) < 0.5 { return address }
+  addressWin = fg.id
+  addressAt = Date()
+  if let area = webAreas[fg.id], let found = addressOf(axValue(area, kAXURLAttribute)) {
+    address = found
+    return found
+  }
+  let app = AXUIElementCreateApplication(fg.pid)
+  AXUIElementSetMessagingTimeout(app, 0.25)
+  if !manual.contains(fg.pid) {
+    manual.insert(fg.pid)
+    _ = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+  }
+  address = nil
+  guard let w = axValue(app, kAXFocusedWindowAttribute) else { return nil }
+  let win = w as! AXUIElement
+  if let doc = addressOf(axValue(win, kAXDocumentAttribute)) {
+    address = doc
+    return doc
+  }
+  var queue: [(AXUIElement, Int)] = [(win, 0)]
+  var looked = 0
+  while !queue.isEmpty && looked < 500 {
+    let (element, depth) = queue.removeFirst()
+    looked += 1
+    if (axValue(element, kAXRoleAttribute) as? String) == "AXWebArea", let found = addressOf(axValue(element, kAXURLAttribute)) {
+      webAreas[fg.id] = element
+      address = found
+      return found
+    }
+    if depth < 16, let children = axValue(element, kAXChildrenAttribute) as? [AXUIElement] {
+      queue += children.map { ($0, depth + 1) }
+    }
+  }
+  return nil
 }
 
 // A game: its program sits in a launcher's library (Steam, Epic, GOG). The game is the name of its
@@ -424,6 +503,11 @@ func snapshot() -> (String, Win?) {
     keys.append(ai.key)
     if browser && site(ai, t) { pages.append(ai.key) }
   }
+  // in a browser, the page's own address says whose site it is, whatever its title
+  if browser, let key = siteOf(frontAddress(fg)) {
+    if !keys.contains(key) { keys.insert(key, at: 0) }
+    if !pages.contains(key) { pages.insert(key, at: 0) }
+  }
   let dl = browser && !keys.isEmpty && matches(DL, t)
   var list: [[String: Any]] = []
   for w in wins.prefix(40) {
@@ -455,7 +539,8 @@ func closePage(_ id: Int, _ key: String) -> String {
   guard let fg = wins.first(where: { $0.pid == frontPid }), fg.id == id else { return "front" }
   guard isBrowser(front()) else { return "browser" }
   titleAt = Date.distantPast
-  guard let ai = AIS.first(where: { $0.key == key }), closable(ai, frontTitle(fg)) else { return "page" }
+  addressAt = Date.distantPast
+  guard let ai = AIS.first(where: { $0.key == key }), siteOf(frontAddress(fg)) == key || closable(ai, frontTitle(fg)) else { return "page" }
   let held = CGEventSource.flagsState(.combinedSessionState)
   if !held.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]).isEmpty { return "keys" }
   guard AXIsProcessTrusted() else { return "access" }
