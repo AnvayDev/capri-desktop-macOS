@@ -27,6 +27,13 @@ const LOADING_AFTER_MS = 5000;
 const CLOSE_TAG = /\[\[\s*close\s*:?\s*([^\]]*)\]\]/i; // [[close: AM Music]] at the end of her answer
 // "close", "shut down", "ferme", "quitte", "cierra", "fecha", "закрой"... in any of her languages
 const CLOSE_ASK = /\b(close|shut|quit|kill|exit)|ferm|quitt|coupe|arr[êe]t|cierr|cerra|fech|закр|выключ/i;
+// browser tabs, in her languages: "close my youtube tabs", "ferme l'onglet netflix", "cierra la pestaña"...
+const TAB_WORD = /\btabs?\b|onglets?|pesta[ñn]as?|\babas?\b|вкладк\S*/i;
+// what's left of "close my youtube tabs" once the asking is taken out: "youtube"
+const TAB_FILLER = new Set(['close', 'shut', 'kill', 'please', 'pls', 'my', 'the', 'all', 'every', 'those', 'these', 'of', 'open', 'opened',
+  'ferme', 'fermer', 'mes', 'les', 'le', 'la', 'tous', 'toutes', 'de', 'des', 'du', 'ouvert', 'ouverts', 'stp',
+  'cierra', 'cerrar', 'mis', 'las', 'los', 'todas', 'del', 'abiertas', 'porfa', 'fecha', 'fechar', 'minhas', 'meus', 'as', 'os', 'da', 'do', 'abertas',
+  'закрой', 'закрыть', 'мои', 'все', 'пожалуйста']);
 // her other tags: [[open: Spotify]], [[music: Bad Bunny]], [[media: next]], [[site: youtube.com]]
 const TAG = /\[\[\s*(open|music|media|site|tabs)\s*:\s*([^\]]*)\]\]/i;
 // "open", "launch", "ouvre", "lance", "abre", "открой"... in any of her languages
@@ -365,7 +372,7 @@ export class Chat {
     // line about it comes under her answer (Claude Code, answering her chat, does things its own way)
     const asked = this.agent ? null : this.asked(text);
     if (asked?.kind === 'look') return this.sendLook(text, id);
-    const early = asked && asked.kind !== 'close' ? this.doNow(asked) : null;
+    const early = asked && !['close', 'tabs'].includes(asked.kind) ? this.doNow(asked) : null;
     this.bond?.heard(text); // "sorry": she lets it go
     await Promise.race([this.appsReady, new Promise((r) => setTimeout(r, 1500))]);
     // what she greeted you with (angry, sulking…), in the conversation before your message, so her
@@ -510,6 +517,12 @@ export class Chat {
     if (song) return { kind: 'music', song };
     const video = YOUTUBE_ASK.exec(text)?.[1];
     if (video) return { kind: 'youtube', song: songOf(video) };
+    // a Mac's browser tabs, by a word in them: whatever her AI says, the button comes (tabs.js)
+    if (this.brain.platform === 'darwin' && CLOSE_ASK.test(text) && TAB_WORD.test(text)) {
+      const query = text.toLowerCase().split(/[^\p{L}\p{N}.-]+/u)
+        .filter((w) => w.length >= 2 && !TAB_FILLER.has(w) && !TAB_WORD.test(w)).join(' ');
+      if (query) return { kind: 'tabs', query };
+    }
     const app = this.askedToClose(text);
     if (app) return { kind: 'close', name: app };
     if (GAME_ASK.test(text) && count <= 8) return { kind: 'open', text };
@@ -835,6 +848,7 @@ export class Chat {
     if (done) return this.addLine(answer, done.line, done.face);
     if (asked?.kind === 'remind') return undefined; // no time said: her answer asks when
     if (asked?.kind === 'close') return this.offerClose(asked.name, answer);
+    if (asked?.kind === 'tabs') return this.offerTabs(asked.query, answer);
     if (asked && asked.kind !== 'open') return undefined; // music that didn't work out: nothing more to offer
     const closeTag = tagged(raw);
     if (closeTag) return wanted('close', text) ? this.offerClose(closeTag, answer) : undefined;
