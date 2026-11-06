@@ -69,5 +69,6 @@ contextBridge.exposeInMainWorld('host', {
   screenshot: () => ipcRenderer.invoke('files:screenshot'),
   webSearch: (query) => ipcRenderer.invoke('web:search', query),
   openSite: (address) => ipcRenderer.invoke('apps:site', address),
+  closeTabs: (query) => ipcRenderer.invoke('tabs:close', query),
   focusOverlay: (on) => ipcRenderer.send('overlay:focus', Boolean(on)),
 });

@@ -92,7 +92,7 @@ export const LINES = {
       notFound: 'Je ne vois pas « {app} » ouvert sur ton PC.',
       // ouvrir une appli ou un jeu, la musique, un site
       openIt: 'Ouvrir {app}', opened: '{app} : c’est parti.', notInstalled: 'Je ne trouve pas « {app} » sur ton PC.',
-      music: 'Je cherche « {song} » sur Spotify.', siteIt: 'Ouvrir {site}', siteOpened: '{site} : ouvert.',
+      music: 'Je cherche « {song} » sur Spotify.', siteIt: 'Ouvrir {site}', siteOpened: '{site} : ouvert.', tabsIt: "Fermer les onglets « {query} »", tabsClosed: "{count} onglet(s) fermé(s).", tabsNone: "Aucun onglet « {query} » ouvert.", tabsDenied: "macOS ne me laisse pas toucher à {browsers} : autorise-moi dans Réglages › Confidentialité et sécurité › Automatisation.",
       youtube: 'C’est parti : {title}.', youtubeSearch: 'Je te cherche « {song} » sur YouTube.',
       web: 'Je cherche « {query} » sur Google.',
       robloxPlay: 'Je te lance {game} sur Roblox.', robloxPage: '{game} : je t’ouvre sa page Roblox.', robloxNone: 'Je ne trouve pas « {game} » sur Roblox.',
@@ -474,7 +474,7 @@ export const LINES = {
       notFound: 'I don’t see “{app}” open on your PC.',
       // opening an app or a game, the music, a website
       openIt: 'Open {app}', opened: '{app}: on it.', notInstalled: 'I can’t find “{app}” on your PC.',
-      music: 'Looking up “{song}” on Spotify.', siteIt: 'Open {site}', siteOpened: '{site}: open.',
+      music: 'Looking up “{song}” on Spotify.', siteIt: 'Open {site}', siteOpened: '{site}: open.', tabsIt: "Close “{query}” tabs", tabsClosed: "Closed {count} tab(s).", tabsNone: "No “{query}” tabs open.", tabsDenied: "macOS won’t let me touch {browsers}: allow me in Settings › Privacy & Security › Automation.",
       youtube: 'Here you go: {title}.', youtubeSearch: 'Looking up “{song}” on YouTube.',
       web: 'Searching “{query}” on Google.',
       robloxPlay: 'Starting {game} on Roblox for you.', robloxPage: '{game}: opening its Roblox page.', robloxNone: 'Can’t find “{game}” on Roblox.',
@@ -852,7 +852,7 @@ export const LINES = {
       notFound: 'No veo «{app}» abierta en tu PC.',
       // abrir una app o un juego, la música, una web
       openIt: 'Abrir {app}', opened: '{app}: en marcha.', notInstalled: 'No encuentro «{app}» en tu PC.',
-      music: 'Busco «{song}» en Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: abierta.',
+      music: 'Busco «{song}» en Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: abierta.', tabsIt: "Cerrar pestañas «{query}»", tabsClosed: "{count} pestaña(s) cerrada(s).", tabsNone: "No hay pestañas «{query}» abiertas.", tabsDenied: "macOS no me deja tocar {browsers}: permíteme en Ajustes › Privacidad y seguridad › Automatización.",
       youtube: 'Ahí va: {title}.', youtubeSearch: 'Te busco «{song}» en YouTube.',
       web: 'Busco «{query}» en Google.',
       robloxPlay: 'Te lanzo {game} en Roblox.', robloxPage: '{game}: te abro su página de Roblox.', robloxNone: 'No encuentro «{game}» en Roblox.',
@@ -1229,7 +1229,7 @@ export const LINES = {
       notFound: 'Não vejo “{app}” aberto no seu PC.',
       // abrir um app ou um jogo, a música, um site
       openIt: 'Abrir {app}', opened: '{app}: abrindo.', notInstalled: 'Não acho “{app}” no seu PC.',
-      music: 'Procurando “{song}” no Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: aberto.',
+      music: 'Procurando “{song}” no Spotify.', siteIt: 'Abrir {site}', siteOpened: '{site}: aberto.', tabsIt: "Fechar abas “{query}”", tabsClosed: "{count} aba(s) fechada(s).", tabsNone: "Nenhuma aba “{query}” aberta.", tabsDenied: "O macOS não me deixa mexer no {browsers}: me libere em Ajustes › Privacidade e Segurança › Automação.",
       youtube: 'Lá vai: {title}.', youtubeSearch: 'Vou procurar “{song}” no YouTube.',
       web: 'Procurando “{query}” no Google.',
       robloxPlay: 'Tô abrindo {game} no Roblox.', robloxPage: '{game}: abrindo a página no Roblox.', robloxNone: 'Não achei “{game}” no Roblox.',
@@ -1606,7 +1606,7 @@ export const LINES = {
       notFound: 'Не вижу «{app}» среди открытых на твоём ПК.',
       // открыть приложение или игру, музыка, сайт
       openIt: 'Открыть {app}', opened: '{app}: запускаю.', notInstalled: 'Не нахожу «{app}» на твоём ПК.',
-      music: 'Ищу «{song}» в Spotify.', siteIt: 'Открыть {site}', siteOpened: '{site}: открыт.',
+      music: 'Ищу «{song}» в Spotify.', siteIt: 'Открыть {site}', siteOpened: '{site}: открыт.', tabsIt: "Закрыть вкладки «{query}»", tabsClosed: "Закрыто вкладок: {count}.", tabsNone: "Вкладок «{query}» не открыто.", tabsDenied: "macOS не даёт мне трогать {browsers}: разреши в Настройках › Конфиденциальность и безопасность › Автоматизация.",
       youtube: 'Держи: {title}.', youtubeSearch: 'Ищу «{song}» на YouTube.',
       web: 'Ищу «{query}» в Google.',
       robloxPlay: 'Запускаю {game} в Roblox.', robloxPage: '{game}: открываю страницу в Roblox.', robloxNone: 'Не нахожу «{game}» в Roblox.',
@@ -1953,7 +1953,89 @@ const OTHERS = {
   },
 };
 const converted = new Map();
-export function linesFor(lang, assistant = 'claude') {
+// On a Mac: the menu bar instead of the clock, ⌃⌥C, Finder, the Keychain, Force Quit...
+const MAC = {
+  fr: {
+    'chat.unkillable': '{app} résiste. Force-le à quitter toi-même : ⌥⌘Échap.',
+    'chat.folders.explorer': 'Le Finder',
+    'chat.pc.pages.update': 'Mise à jour de logiciels',
+    'guide.icon.line': 'Mon icône, c’est là, dans la barre des menus.',
+    'guide.icon.hidden': 'Si ta barre des menus est pleine, macOS la cache parfois sous l’encoche. Sinon, clic droit sur moi : c’est le même menu.',
+    'setup.installHow': 'C’est lui qui fait tourner l’IA sur ton Mac. Je le télécharge depuis son site et je le range dans tes Applications : une ou deux minutes.',
+    'setup.wakeFailedHow': 'Ouvre-le depuis tes Applications, puis reparle-moi.',
+    'setup.pasteHow': 'Je la garde sur ce Mac, dans ton trousseau.',
+    'motion.line': 'Ton Mac a « Réduire les animations » activé, alors je bouge à peine.',
+  },
+  en: {
+    'chat.unkillable': '{app} won’t go down. Force quit it yourself: ⌥⌘Esc.',
+    'chat.folders.explorer': 'Finder',
+    'chat.folders.recycle': 'The Trash',
+    'chat.pc.pages.update': 'Software Update',
+    'guide.icon.line': 'My icon is right there, in the menu bar.',
+    'guide.icon.hidden': 'When your menu bar is full, macOS can hide it under the notch. Or right-click me: same menu.',
+    'setup.installHow': 'It’s what runs the AI on your Mac. I download it from its site and put it in your Applications: a minute or two.',
+    'setup.wakeFailedHow': 'Open it from your Applications, then talk to me again.',
+    'setup.pasteHow': 'I keep it on this Mac, in your Keychain.',
+    'motion.line': 'Your Mac has Reduce motion on, so I’m barely moving.',
+  },
+  es: {
+    'chat.unkillable': '{app} se resiste. Fuérzala a salir tú: ⌥⌘Esc.',
+    'chat.folders.explorer': 'El Finder',
+    'chat.pc.pages.update': 'Actualización de software',
+    'guide.icon.line': 'Mi icono está ahí, en la barra de menús.',
+    'guide.icon.hidden': 'Si tu barra de menús está llena, macOS puede esconderlo bajo la muesca. Si no, clic derecho sobre mí: es el mismo menú.',
+    'setup.installHow': 'Es lo que hace funcionar la IA en tu Mac. Lo descargo de su web y lo pongo en tus Aplicaciones: uno o dos minutos.',
+    'setup.wakeFailedHow': 'Ábrelo desde tus Aplicaciones y vuelve a hablarme.',
+    'setup.pasteHow': 'La guardo en este Mac, en tu llavero.',
+    'motion.line': 'Tu Mac tiene «Reducir movimiento» activado, así que apenas me muevo.',
+  },
+  pt: {
+    'chat.unkillable': '{app} não cai. Force o encerramento você mesmo: ⌥⌘Esc.',
+    'chat.folders.explorer': 'O Finder',
+    'chat.folders.recycle': 'O Lixo',
+    'chat.pc.pages.update': 'Atualização de Software',
+    'guide.icon.line': 'Meu ícone está ali, na barra de menus.',
+    'guide.icon.hidden': 'Se a sua barra de menus estiver cheia, o macOS pode escondê-lo sob o entalhe. Ou clique direito em mim: é o mesmo menu.',
+    'setup.installHow': 'É ele que roda a IA no seu Mac. Eu baixo do site dele e coloco nos seus Aplicativos: um ou dois minutos.',
+    'setup.wakeFailedHow': 'Abra ele pelos seus Aplicativos e fale comigo de novo.',
+    'setup.pasteHow': 'Eu guardo ela neste Mac, nas suas Chaves.',
+    'motion.line': 'O seu Mac está com “Reduzir movimento” ligado, então eu quase não me mexo.',
+  },
+  ru: {
+    'chat.unkillable': '{app} не сдаётся. Завершь принудительно сам: ⌥⌘Esc.',
+    'chat.folders.explorer': 'Finder',
+    'chat.pc.pages.update': 'Обновление ПО',
+    'guide.icon.line': 'Моя иконка вон там, в строке меню.',
+    'guide.icon.hidden': 'Когда строка меню переполнена, macOS может спрятать её под вырезом. Или правый клик по мне — то же меню.',
+    'setup.installHow': 'Это она запускает ИИ у тебя на Mac. Я скачаю её с сайта и положу в «Программы»: минута-две.',
+    'setup.wakeFailedHow': 'Открой её из «Программ» и снова заговори со мной.',
+    'setup.pasteHow': 'Я храню его на этом Mac, в твоей связке ключей.',
+    'motion.line': 'На твоём Mac включено «Уменьшение движения», поэтому я почти не двигаюсь.',
+  },
+};
+
+function forMac(lines, lang) {
+  const swap = (value) => {
+    if (typeof value === 'string') return value.replaceAll('Ctrl+Alt+C', '⌃⌥C').replaceAll('{drive}:', '{drive}').replace(/\bPC\b/g, 'Mac').replaceAll('ПК', 'Mac');
+    if (Array.isArray(value)) return value.map(swap);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)]));
+    return value;
+  };
+  const out = swap(lines);
+  for (const [at, text] of Object.entries(MAC[lang] || MAC.en)) {
+    const keys = at.split('.');
+    const parent = keys.slice(0, -1).reduce((o, k) => o?.[k], out);
+    if (parent && typeof parent[keys.at(-1)] === 'string') parent[keys.at(-1)] = text;
+  }
+  return out;
+}
+
+export function linesFor(lang, assistant = 'claude', platform = 'win32') {
+  if (platform === 'darwin') {
+    const key = `mac:${assistant}:${lang}`;
+    if (!converted.has(key)) converted.set(key, forMac(linesFor(lang, assistant), lang));
+    return converted.get(key);
+  }
   const base = LINES[lang] || LINES.fr;
   const other = OTHERS[assistant];
   if (!other) return base;

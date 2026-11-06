@@ -28,7 +28,7 @@ const CLOSE_TAG = /\[\[\s*close\s*:?\s*([^\]]*)\]\]/i; // [[close: AM Music]] at
 // "close", "shut down", "ferme", "quitte", "cierra", "fecha", "закрой"... in any of her languages
 const CLOSE_ASK = /\b(close|shut|quit|kill|exit)|ferm|quitt|coupe|arr[êe]t|cierr|cerra|fech|закр|выключ/i;
 // her other tags: [[open: Spotify]], [[music: Bad Bunny]], [[media: next]], [[site: youtube.com]]
-const TAG = /\[\[\s*(open|music|media|site)\s*:\s*([^\]]*)\]\]/i;
+const TAG = /\[\[\s*(open|music|media|site|tabs)\s*:\s*([^\]]*)\]\]/i;
 // "open", "launch", "ouvre", "lance", "abre", "открой"... in any of her languages
 const OPEN_ASK = /\b(open|launch|start|run)\b|ouvr|lance|démarre|abre|abrir|inicia|ejecuta|executa|открой|запусти/i;
 // what to do with the music playing, said plainly (only when it's about music, or said in a few words)
@@ -847,6 +847,7 @@ export class Chat {
     // a song she picked: on YouTube, the right video (on Spotify if that's what you said)
     if (kind === 'music') return /spotify/i.test(text) ? this.music(value, answer) : this.playOn(value, answer);
     if (kind === 'site') return this.offerSite(value, answer);
+    if (kind === 'tabs') return this.offerTabs(value, answer);
     const item = await this.host.findLaunch(value);
     if (item) return this.launch(item, answer);
     const site = namedSite(value); // "[[open: YouTube]]": a site, not an app
@@ -923,6 +924,24 @@ export class Chat {
     );
   }
 
+  // Browser tabs to close, by a word in their address or title: behind a button, like a site.
+  offerTabs(query, answer) {
+    const { t } = this;
+    if (!this.open || this.turn || query.length < 2) return;
+    this.panel.setActions(
+      [{ id: 'tabs', label: fmt(t.tabsIt, { query }), primary: true }, { id: 'no', label: t.no }],
+      async (id) => {
+        this.panel.setActions([]);
+        if (id !== 'tabs') return;
+        const res = await this.host.closeTabs(query);
+        if (!res) return;
+        if (res.closed) this.addLine(answer, fmt(t.tabsClosed, { count: res.closed, query }), 'smug');
+        else if (res.denied.length) this.addLine(answer, fmt(t.tabsDenied, { browsers: res.denied.join(', ') }));
+        else this.addLine(answer, fmt(t.tabsNone, { query }));
+      },
+    );
+  }
+
   // "close am music pls": an app that's open, named in a message asking to close something.
   askedToClose(text) {
     if (!CLOSE_ASK.test(text)) return null;
@@ -979,7 +998,7 @@ export class Chat {
   // What she can do on the PC when you ask (Windows), and nothing else.
   powers() {
     const lines = [
-      'Only when the user asks you to open an app, a game, a file or folder on their desktop, or a folder like Downloads, to play music, to control the music playing, or to open a website: say in a few words that you will, and end your answer with one tag: [[open: NAME]], [[music: ARTIST - SONG]] (it plays on YouTube; if they did not say which song, pick one that fits), [[media: ACTION]] (ACTION: pause, play, next, previous, volup, voldown or mute), or [[site: ADDRESS]]. Some of these get a button to confirm, so never say it is already done. Any other time, write no tag at all: there are no other tags.',
+      'Only when the user asks you to open an app, a game, a file or folder on their desktop, or a folder like Downloads, to play music, to control the music playing, or to open a website: say in a few words that you will, and end your answer with one tag: [[open: NAME]], [[music: ARTIST - SONG]] (it plays on YouTube; if they did not say which song, pick one that fits), [[media: ACTION]] (ACTION: pause, play, next, previous, volup, voldown or mute), or [[site: ADDRESS]]. When they ask you to close browser tabs, end with [[tabs: WORD]] (a word of their address or title, like youtube). Some of these get a button to confirm, so never say it is already done. Any other time, write no tag at all: there are no other tags.',
     ];
     if (this.apps.length) {
       const open = this.apps.map(({ name, label }) => (label && label !== name ? `${name} (${label})` : name)).join(', ');
@@ -1105,6 +1124,7 @@ function wanted(kind, text) {
   if (kind === 'music') return music;
   if (kind === 'media') return music || SOUND.test(text) || MEDIA_ASK.some(([, re]) => re.test(text));
   if (kind === 'site') return OPEN_ASK.test(text) || SITE.test(text);
+  if (kind === 'tabs') return CLOSE_ASK.test(text);
   if (kind === 'close') return CLOSE_ASK.test(text);
   return OPEN_ASK.test(text) || PLAY.test(text); // an app, or a game to play
 }
