@@ -17,7 +17,7 @@
 //   capri-helper lock                        locks the screen
 //   capri-helper trusted [prompt]            whether Capri may use Accessibility (and asks if `prompt`)
 //
-// Built by scripts/build-mac-helper.sh (universal: Apple silicon and Intel).
+// Built by scripts/build-mac.sh (universal: Apple silicon and Intel).
 
 import Cocoa
 import ApplicationServices
@@ -119,66 +119,112 @@ let AI_HOSTS: [(key: String, hosts: [String])] = [
 ]
 
 func siteOf(_ address: String?) -> String? {
-  guard let host = address.flatMap({ URL(string: $0)?.host?.lowercased() }) else { return nil }
+  guard let text = address, let url = URL(string: text),
+        ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+        let host = url.host?.lowercased() else { return nil }
   return AI_HOSTS.first { $0.hosts.contains { host == $0 || host.hasSuffix("." + $0) } }?.key
 }
 
 func axValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+  // A timeout on the application does not apply to its window or children.
+  AXUIElementSetMessagingTimeout(element, 0.1)
   var value: CFTypeRef?
   return AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success ? value : nil
 }
 
-func addressOf(_ value: CFTypeRef?) -> String? {
-  if let url = value as? URL { return url.absoluteString }
-  if let text = value as? String, text.hasPrefix("http") { return text }
-  return nil
+func addressOf(_ value: Any?) -> String? {
+  let text = (value as? URL)?.absoluteString ?? (value as? String)
+  guard let text = text, let url = URL(string: text), url.host != nil,
+        ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return nil }
+  return text
 }
 
-// The address of the page in the browser window in front, through Accessibility: its web area,
-// found once per window then read again (Chromium browsers build theirs only when asked).
-var webAreas: [Int: AXUIElement] = [:]
+// Walk the current window, never a retained web area from a previous tab. Do not enter web areas:
+// an embedded AI frame on an unrelated site is not the page itself. Visible children exclude
+// background tabs in browsers that expose them; ambiguous page trees are left alone.
+func pageAddress<Element>(_ window: Element, read: (Element, String) -> Any?,
+                          children: (Element) -> [Element], expired: () -> Bool) -> (url: String?, complete: Bool) {
+  if let doc = addressOf(read(window, kAXDocumentAttribute)), !expired() { return (doc, true) }
+  var queue: [(Element, Int)] = [(window, 0)]
+  var index = 0
+  var found: String?
+  while index < queue.count && index < 500 && !expired() {
+    let (element, depth) = queue[index]
+    index += 1
+    if (read(element, "AXHidden") as? Bool) == true { continue }
+    if (read(element, kAXRoleAttribute) as? String) == "AXWebArea" {
+      guard let url = addressOf(read(element, kAXURLAttribute)) else { return (nil, false) }
+      if let other = found, other != url { return (nil, false) }
+      found = url
+      continue
+    }
+    let next = children(element)
+    if !next.isEmpty {
+      if depth >= 16 || queue.count + next.count > 500 { return (nil, false) }
+      queue += next.map { ($0, depth + 1) }
+    }
+  }
+  return expired() ? (nil, false) : (found, true)
+}
+
 var manual: Set<pid_t> = []
 var address: String?
 var addressWin = 0
+var addressPid: pid_t = 0
 var addressAt = Date.distantPast
+var addressTimedOut = false
+var addressComplete = true
 
-func frontAddress(_ fg: Win?) -> String? {
-  guard let fg = fg, AXIsProcessTrusted() else { return nil }
-  if fg.id == addressWin && Date().timeIntervalSince(addressAt) < 0.5 { return address }
+func frontAddress(_ fg: Win?, fresh: Bool = false) -> String? {
+  guard let fg = fg, AXIsProcessTrusted() else { addressComplete = false; return nil }
+  if !fresh && fg.id == addressWin && fg.pid == addressPid && Date().timeIntervalSince(addressAt) < 0.5 { return address }
   addressWin = fg.id
+  addressPid = fg.pid
   addressAt = Date()
-  if let area = webAreas[fg.id], let found = addressOf(axValue(area, kAXURLAttribute)) {
-    address = found
-    return found
+  address = nil
+  addressTimedOut = false
+  addressComplete = false
+  // Leave time for the watcher's three-second request timeout, even for an unresponsive browser.
+  let deadline = ProcessInfo.processInfo.systemUptime + 0.7
+  let expired = { () -> Bool in ProcessInfo.processInfo.systemUptime >= deadline }
+  let read = { (element: AXUIElement, attribute: String) -> Any? in
+    return expired() ? nil : axValue(element, attribute)
   }
   let app = AXUIElementCreateApplication(fg.pid)
-  AXUIElementSetMessagingTimeout(app, 0.25)
+  AXUIElementSetMessagingTimeout(app, 0.1)
   if !manual.contains(fg.pid) {
-    manual.insert(fg.pid)
-    _ = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    if AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success {
+      manual.insert(fg.pid)
+    }
   }
-  address = nil
-  guard let w = axValue(app, kAXFocusedWindowAttribute) else { return nil }
+  guard let w = read(app, kAXFocusedWindowAttribute), CFGetTypeID(w as CFTypeRef) == AXUIElementGetTypeID() else {
+    addressTimedOut = expired()
+    return nil
+  }
   let win = w as! AXUIElement
-  if let doc = addressOf(axValue(win, kAXDocumentAttribute)) {
-    address = doc
-    return doc
-  }
-  var queue: [(AXUIElement, Int)] = [(win, 0)]
-  var looked = 0
-  while !queue.isEmpty && looked < 500 {
-    let (element, depth) = queue.removeFirst()
-    looked += 1
-    if (axValue(element, kAXRoleAttribute) as? String) == "AXWebArea", let found = addressOf(axValue(element, kAXURLAttribute)) {
-      webAreas[fg.id] = element
-      address = found
-      return found
-    }
-    if depth < 16, let children = axValue(element, kAXChildrenAttribute) as? [AXUIElement] {
-      queue += children.map { ($0, depth + 1) }
-    }
-  }
-  return nil
+  let result = pageAddress(win, read: read, children: { element in
+    return (read(element, kAXVisibleChildrenAttribute) as? [AXUIElement])
+      ?? (read(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []
+  }, expired: expired)
+  address = result.url
+  addressComplete = result.complete
+  addressTimedOut = expired()
+  return address
+}
+
+// An address, when available, takes precedence over words in a conversation's title.
+func detectsAI(_ title: String, name: String, browser: Bool, address: String?) -> (keys: [String], pages: [String], download: Bool) {
+  if browser, let key = siteOf(address) { return ([key], [key], false) }
+  let keys = AIS.filter { matches($0.title, title) || (!$0.app.isEmpty && name == $0.app) }.map { $0.key }
+  let pages = browser && address == nil ? AIS.filter { keys.contains($0.key) && site($0, title) }.map { $0.key } : []
+  return (keys, pages, browser && !keys.isEmpty && matches(DL, title))
+}
+
+func canClosePage(_ key: String, title: String, address: String?) -> Bool {
+  guard let ai = AIS.first(where: { $0.key == key }) else { return false }
+  if let site = siteOf(address) { return site == key }
+  // Download pages can be on another site; otherwise a known non-AI address overrides the title.
+  return address == nil ? closable(ai, title) : matches(ai.title, title) && matches(DL, title)
 }
 
 // A game: its program sits in a launcher's library (Steam, Epic, GOG). The game is the name of its
@@ -233,12 +279,8 @@ func windowList(skip overlay: Int) -> [Win] {
 func axTitle(_ pid: pid_t) -> String? {
   guard AXIsProcessTrusted() else { return nil }
   let app = AXUIElementCreateApplication(pid)
-  AXUIElementSetMessagingTimeout(app, 0.25)
-  var win: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &win) == .success, let w = win else { return nil }
-  var title: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(w as! AXUIElement, kAXTitleAttribute as CFString, &title) == .success else { return nil }
-  return title as? String
+  guard let win = axValue(app, kAXFocusedWindowAttribute), CFGetTypeID(win) == AXUIElementGetTypeID() else { return nil }
+  return axValue(win as! AXUIElement, kAXTitleAttribute) as? String
 }
 
 // MARK: - USB sticks and devices
@@ -436,13 +478,16 @@ func keyCode(_ char: String, fallback: CGKeyCode) -> CGKeyCode {
   return fallback
 }
 
-func press(_ code: CGKeyCode, flags: CGEventFlags) {
+func press(_ code: CGKeyCode, flags: CGEventFlags, pid: pid_t) -> Bool {
   let source = CGEventSource(stateID: .hidSystemState)
-  for down in [true, false] {
-    let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)
-    event?.flags = flags
-    event?.post(tap: .cghidEventTap)
+  guard let down = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true),
+        let up = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false) else { return false }
+  for event in [down, up] {
+    event.flags = flags
+    // A last-instant focus change must never send ⌘W to Capri (or another app).
+    event.postToPid(pid)
   }
+  return true
 }
 
 // The media keys, as if pressed on the keyboard: whatever plays music reacts.
@@ -496,26 +541,15 @@ func snapshot() -> (String, Win?) {
   let t = frontTitle(fg)
   let name = (app?.localizedName ?? "").lowercased()
   let browser = isBrowser(app)
-  var keys: [String] = []
-  var pages: [String] = []
-  for ai in AIS {
-    guard matches(ai.title, t) || (!ai.app.isEmpty && name == ai.app) else { continue }
-    keys.append(ai.key)
-    if browser && site(ai, t) { pages.append(ai.key) }
-  }
-  // in a browser, the page's own address says whose site it is, whatever its title
-  if browser, let key = siteOf(frontAddress(fg)) {
-    if !keys.contains(key) { keys.insert(key, at: 0) }
-    if !pages.contains(key) { pages.insert(key, at: 0) }
-  }
-  let dl = browser && !keys.isEmpty && matches(DL, t)
+  let page = browser ? frontAddress(fg) : nil
+  let detected = detectsAI(t, name: name, browser: browser && addressComplete, address: page)
   var list: [[String: Any]] = []
   for w in wins.prefix(40) {
     if w.rect.width < 200 || w.rect.height < 120 { continue }
     list.append(["id": w.id, "x": Int(w.rect.origin.x), "y": Int(w.rect.origin.y), "w": Int(w.rect.width), "h": Int(w.rect.height), "pid": Int(w.pid)])
   }
   let snap: [String: Any] = [
-    "fg": fgId, "fgPid": Int(frontPid), "taskbar": false, "ai": keys, "pages": pages, "dl": dl,
+    "fg": fgId, "fgPid": Int(frontPid), "taskbar": false, "ai": detected.keys, "pages": detected.pages, "dl": detected.download,
     "game": gameOf(app).map { $0 as Any } ?? NSNull(), "usb": usb(), "plug": plug, "wins": list,
   ]
   return (json(snap), fg)
@@ -535,17 +569,28 @@ func tick() {
 // still is that page, in that window, in front, in a browser, and no Shift, Option or Control is held
 // (⌘⇧W would close the whole window). "" once done, else why not.
 func closePage(_ id: Int, _ key: String) -> String {
+  guard AXIsProcessTrusted() else { return "access" }
+  guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != capriPid else { return "front" }
+  let pid = app.processIdentifier
   let wins = windowList(skip: overlayId)
-  guard let fg = wins.first(where: { $0.pid == frontPid }), fg.id == id else { return "front" }
-  guard isBrowser(front()) else { return "browser" }
+  guard let fg = wins.first(where: { $0.pid == pid }), fg.id == id else { return "front" }
+  guard isBrowser(app) else { return "browser" }
   titleAt = Date.distantPast
-  addressAt = Date.distantPast
-  guard let ai = AIS.first(where: { $0.key == key }), siteOf(frontAddress(fg)) == key || closable(ai, frontTitle(fg)) else { return "page" }
+  let currentAddress = frontAddress(fg, fresh: true)
+  if addressTimedOut { return "late" }
+  if !addressComplete { return "page" }
+  guard canClosePage(key, title: frontTitle(fg), address: currentAddress) else { return "page" }
+  let code = keyCode("w", fallback: 13)
+  // Accessibility may have taken time. Check the live foreground again, not the last timer tick.
+  guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+        windowList(skip: overlayId).first(where: { $0.pid == pid })?.id == id else { return "front" }
   let held = CGEventSource.flagsState(.combinedSessionState)
   if !held.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]).isEmpty { return "keys" }
   guard AXIsProcessTrusted() else { return "access" }
-  press(keyCode("w", fallback: 13), flags: .maskCommand)
-  return ""
+  let sent = press(code, flags: .maskCommand, pid: pid)
+  addressAt = Date.distantPast
+  titleAt = Date.distantPast
+  return sent ? "" : "error"
 }
 
 func listenForAsks() {
@@ -650,6 +695,8 @@ func lockScreen() {
 
 // MARK: - main
 
+#if !CAPRI_TESTS
+
 let args = CommandLine.arguments
 let command = args.count > 1 ? args[1] : ""
 let number = { (i: Int) -> Int in args.count > i ? (Int(args[i]) ?? 0) : 0 }
@@ -687,3 +734,5 @@ default:
   FileHandle.standardError.write("usage: capri-helper watch|apps|quit|kill|hide|unhide|place|activate|media|lock|trusted\n".data(using: .utf8)!)
   exit(2)
 }
+
+#endif

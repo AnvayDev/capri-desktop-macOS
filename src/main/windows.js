@@ -113,6 +113,7 @@ function startMacWatch({ overlay, onUpdate }) {
   let child = null;
   let stopped = false;
   let restarts = 0;
+  let restartTimer = null;
   let last = null;
   let asks = 0;
   const asked = new Map();
@@ -126,7 +127,7 @@ function startMacWatch({ overlay, onUpdate }) {
   });
 
   const send = () => {
-    if (!last || overlay.isDestroyed()) return;
+    if (stopped || !last || overlay.isDestroyed()) return;
     const bounds = overlay.getBounds();
     const wins = (Array.isArray(last.wins) ? last.wins : [])
       .map((w) => ({ id: w.id, x: w.x - bounds.x, y: w.y - bounds.y, w: w.w, h: w.h, max: filling(w) }))
@@ -139,14 +140,20 @@ function startMacWatch({ overlay, onUpdate }) {
   };
 
   const answer = (n, why) => {
-    asked.get(n)?.(why);
+    const pending = asked.get(n);
+    if (!pending) return;
+    clearTimeout(pending.timer);
     asked.delete(n);
+    pending.resolve(why);
   };
 
   const start = () => {
-    child = mac.spawnHelper(['watch', process.pid, selfId()]);
-    if (!child) return;
-    readline.createInterface({ input: child.stdout }).on('line', (line) => {
+    restartTimer = null;
+    if (stopped || overlay.isDestroyed()) return;
+    const proc = child = mac.spawnHelper(['watch', process.pid, selfId()]);
+    if (!proc) return;
+    readline.createInterface({ input: proc.stdout }).on('line', (line) => {
+      if (stopped || child !== proc) return;
       let msg;
       try {
         msg = JSON.parse(line);
@@ -157,13 +164,22 @@ function startMacWatch({ overlay, onUpdate }) {
       last = msg;
       send();
     });
-    child.stdin.on('error', () => {});
-    child.stderr.on('data', (d) => console.error('[capri] window watch:', String(d).trim()));
-    child.on('exit', () => {
+    const gone = () => {
+      if (child !== proc) return;
       child = null;
+      // Clear the old foreground page while the helper is unavailable.
+      last = { fg: 0, fgPid: 0, wins: [] };
+      send();
       for (const n of [...asked.keys()]) answer(n, 'gone');
-      if (!stopped && restarts++ < 3) setTimeout(start, 3000);
+      if (!stopped && restarts++ < 3) restartTimer = setTimeout(start, 3000);
+    };
+    proc.stdin.on('error', () => { gone(); proc.kill(); });
+    proc.stderr.on('data', (d) => console.error('[capri] window watch:', String(d).trim()));
+    proc.on('error', (err) => {
+      console.error('[capri] window watch:', err.message);
+      gone();
     });
+    proc.on('exit', gone);
   };
 
   // her window needs a number before the helper can leave it out: once it's on screen
@@ -173,16 +189,22 @@ function startMacWatch({ overlay, onUpdate }) {
   return {
     stop() {
       stopped = true;
-      child?.kill();
+      overlay.removeListener('show', start);
+      clearTimeout(restartTimer);
+      const proc = child;
+      child = null;
+      last = null;
+      for (const n of [...asked.keys()]) answer(n, 'gone');
+      proc?.kill();
     },
     refresh: send,
     close(id, key) {
-      if (!child) return Promise.resolve('gone');
+      if (stopped || overlay.isDestroyed() || !child || child.stdin.destroyed) return Promise.resolve('gone');
       const n = ++asks;
       return new Promise((resolve) => {
-        asked.set(n, resolve);
+        const timer = setTimeout(() => answer(n, 'late'), 3000);
+        asked.set(n, { resolve, timer });
         child.stdin.write(`close ${Math.trunc(Number(id)) || 0} ${String(key).replace(/\W/g, '')} ${n}\n`);
-        setTimeout(() => answer(n, 'late'), 3000);
       });
     },
     // the app in front, as the helper saw it last (to give it the keyboard back after her chat)

@@ -33,7 +33,7 @@ function helper() {
   const file = MAC ? helperPath() : null;
   if (MAC && !file && !warned) {
     warned = true;
-    console.error('[capri] no macOS helper: run `npm run build:mac-helper` (window tracking and app control are off)');
+    console.error('[capri] no macOS helper: run `npm run build:mac` (window tracking and app control are off)');
   }
   return file;
 }

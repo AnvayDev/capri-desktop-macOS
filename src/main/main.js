@@ -40,6 +40,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let overlay = null;
+let quitting = false;
+let stopScreenWatch = () => {};
 let tray = null;
 let trayMenu = null; // also what she opens when you right-click her
 let demoTimer = null;
@@ -120,6 +122,7 @@ function targetDisplay() {
 // Her window over to another screen (she's on her way there, screens.js). Set twice: going to a
 // screen with another scale, Windows resizes the window once it lands there.
 function moveOverlay(id) {
+  if (quitting || !overlay || overlay.isDestroyed()) return null;
   if (!displays().some((d) => d.id === id)) return null;
   config.save({ displayId: id });
   fitOverlay();
@@ -141,17 +144,17 @@ function overlayArea() {
 }
 
 function fitOverlay() {
-  if (!overlay) return;
+  if (quitting || !overlay || overlay.isDestroyed()) return;
   const { area, gap } = overlayArea();
   overlay.setBounds(area);
-  overlay.webContents.send('overlay:resize', { width: area.width, height: area.height, gap });
+  sendOverlay('overlay:resize', { width: area.width, height: area.height, gap });
 }
 
 // The pointer reaches her click-through window through a mouse hook, and Windows drops a hook that
 // doesn't answer in time without a word (waking from sleep, a locked screen, a stall): she can't be
 // clicked anymore. Off then on puts in a new one; her place on top and her size are set again too.
 function rearmOverlay() {
-  if (!overlay || overlay.isDestroyed()) return;
+  if (quitting || !overlay || overlay.isDestroyed()) return;
   overlay.setIgnoreMouseEvents(false);
   overlay.setIgnoreMouseEvents(true, { forward: true });
   overlay.setAlwaysOnTop(true, 'screen-saver');
@@ -165,7 +168,7 @@ function rearmOverlay() {
 function raiseOverlay() {
   for (const wait of [0, 400]) {
     setTimeout(() => {
-      if (!overlay || overlay.isDestroyed()) return;
+      if (quitting || !overlay || overlay.isDestroyed()) return;
       overlay.setAlwaysOnTop(true, 'screen-saver');
       overlay.moveTop();
     }, wait);
@@ -173,7 +176,7 @@ function raiseOverlay() {
 }
 
 function createOverlay() {
-  overlay = new BrowserWindow({
+  const win = overlay = new BrowserWindow({
     ...overlayArea().area,
     // macOS: a non-activating panel, so clicking her or typing to her doesn't pull you out of your
     // app, floating over full-screen apps too; and allowed over the menu bar when she rests on the Dock
@@ -202,6 +205,19 @@ function createOverlay() {
     },
   });
 
+  // Closing a browser tab must never dismiss her overlay if the keyboard focus changes.
+  // She is put away with Stow, and only Quit should close this window normally.
+  win.on('close', (event) => {
+    if (!quitting) event.preventDefault();
+  });
+  win.once('closed', () => {
+    if (overlay !== win) return;
+    overlay = null;
+    windowWatch?.stop();
+    windowWatch = null;
+    lastWindows = null;
+  });
+
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.setIgnoreMouseEvents(true, { forward: true });
   if (mac.MAC) {
@@ -222,8 +238,9 @@ function createOverlay() {
   // always shown: put away, she's still there as her biochip in the corner. Sized again first:
   // Windows keeps a new window inside the work area, and resting on the taskbar it covers it too.
   overlay.once('ready-to-show', () => {
+    if (quitting || win.isDestroyed() || overlay !== win) return;
     fitOverlay();
-    overlay.showInactive();
+    win.showInactive();
   });
   overlay.webContents.on('render-process-gone', (_e, details) => {
     console.error('[capri] renderer gone:', details.reason);
@@ -237,8 +254,13 @@ function createOverlay() {
   }
 }
 
+function sendOverlay(channel, payload) {
+  if (quitting || !overlay || overlay.isDestroyed() || overlay.webContents.isDestroyed()) return;
+  overlay.webContents.send(channel, payload);
+}
+
 function sendCommand(name, payload = {}) {
-  overlay?.webContents.send('capri:command', { name, ...payload });
+  sendOverlay('capri:command', { name, ...payload });
 }
 
 // Ctrl+Alt+C: she folds herself away into her biochip in the corner, or comes back out of it.
@@ -257,7 +279,7 @@ function playDemo() {
     if (i >= steps.length) return;
     const [delay, evt] = steps[i++];
     demoTimer = setTimeout(() => {
-      overlay?.webContents.send('claude:event', evt);
+      sendOverlay('claude:event', evt);
       next();
     }, delay);
   };
@@ -316,7 +338,7 @@ function updateConfig(patch) {
     windowWatch?.refresh();
   }
   const cfg = rendererConfig();
-  overlay?.webContents.send('capri:config', cfg);
+  sendOverlay('capri:config', cfg);
   rebuildTray();
   return cfg;
 }
@@ -543,15 +565,20 @@ function rebuildTray() {
 // macOS: each open browser asked once, so macOS shows its "Capri wants to control…" prompt now;
 // if one was refused before, its settings page opens where she can be switched on.
 async function allowTabs() {
+  const accessible = await mac.trusted(true);
   const res = await tabs.askAccess();
-  const lines = [];
+  const lines = [accessible
+    ? 'Jealousy can close the AI tab in front with ⌘W.'
+    : 'For Jealousy, enable Capri in System Settings › Privacy & Security › Accessibility. Automation alone only allows the tab requests in her chat.'];
   if (res.none) lines.push('Open Safari, Chrome, Edge, Brave, Arc, Vivaldi or Opera first, then try again.');
   if (res.allowed.length) lines.push(`She can close tabs in: ${res.allowed.join(', ')}.`);
   if (res.denied.length) {
     lines.push(`Not allowed yet: ${res.denied.join(', ')}. Switch Capri on under each of them in Privacy & Security › Automation.`);
-    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation');
   }
-  dialog.showMessageBox({ type: res.denied.length || res.none ? 'warning' : 'info', message: 'Capri and your tabs', detail: lines.join('\n') });
+  if (!accessible || res.denied.length) {
+    await shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?Privacy_${accessible ? 'Automation' : 'Accessibility'}`);
+  }
+  dialog.showMessageBox({ type: !accessible || res.denied.length || res.none ? 'warning' : 'info', message: 'Capri and your tabs', detail: lines.join('\n') });
 }
 
 // Run from a clone (`npm start`), electron.exe alone would open the default Electron app at login:
@@ -757,9 +784,11 @@ function registerIpc() {
     };
   });
   ipcMain.handle('screens:move', async (_e, id) => {
+    const win = overlay;
     const area = moveOverlay(id);
     if (!area) return null;
     await new Promise((r) => setTimeout(r, 60));
+    if (quitting || win.isDestroyed() || overlay !== win) return null;
     overlay.setBounds(area); // again, once Windows has settled it on its new screen
     const o = overlay.getBounds();
     return { origin: { x: o.x, y: o.y }, width: o.width, height: o.height, gap: overlayArea().gap };
@@ -775,7 +804,11 @@ function registerIpc() {
   ipcMain.handle('claude:found', () => fs.existsSync(path.dirname(activeHooks().status().file))); // Claude Code keeps its settings there
   ipcMain.on('claude:help', () => shell.openExternal(activeAssistant().help));
   ipcMain.handle('windows:get', () => lastWindows);
-  ipcMain.handle('windows:closePage', (_e, { id, key }) => windowWatch?.close(id, key) ?? 'gone');
+  ipcMain.handle('windows:closePage', (_e, { id, key }) => {
+    const cfg = config.load();
+    if (cfg.jealous === false || cfg.closePages === false) return 'disabled';
+    return windowWatch?.close(id, key) ?? 'gone';
+  });
   // talking to her (chat.js): is Ollama there, with a model to talk with
   ipcMain.handle('chat:status', async () => {
     const cfg = config.load(true); // keys may have been edited by hand
@@ -796,7 +829,7 @@ function registerIpc() {
       let streamed = false;
       const send = (text) => {
         streamed = true;
-        overlay?.webContents.send('chat:delta', { id, text });
+        sendOverlay('chat:delta', { id, text });
       };
       const cfg = config.load();
       const text = await chatWithFallback(cfg, messages, send, abort.signal, () => streamed);
@@ -846,7 +879,7 @@ function registerIpc() {
   ipcMain.on('chat:remember', (_e, history) => Array.isArray(history) && saveMemory({ history }));
   ipcMain.on('chat:ollama', () => shell.openExternal(OLLAMA_SITE));
   // setting her up with buttons (setup.js): Ollama and a model, or a key, or an address
-  const progress = (payload) => overlay?.webContents.send('setup:progress', payload);
+  const progress = (payload) => sendOverlay('setup:progress', payload);
   let pulling = null; // AbortController of the model being fetched
   ipcMain.handle('setup:info', async () => {
     // the free cloud models too, when Ollama is up and you're signed in to it
@@ -1150,13 +1183,13 @@ function main() {
         // a click on the taskbar brings it up over her: sitting on it, her legs would vanish behind it
         if (data.taskbar && !lastWindows?.taskbar && config.load().rest === 'taskbar') raiseOverlay();
         lastWindows = data;
-        overlay?.webContents.send('windows:update', data);
+        sendOverlay('windows:update', data);
       },
     });
     createBridge({
       port: PORT,
       // her own Claude Code chat's hooks would cover its answer with theirs
-      onEvent: (evt) => !llm.isChatSession(evt.session_id) && overlay?.webContents.send('claude:event', evt),
+      onEvent: (evt) => !llm.isChatSession(evt.session_id) && sendOverlay('claude:event', evt),
       onDebug: DEV ? debugHandler : null,
     });
     globalShortcut.register('Control+Alt+C', () => toggleVisible());
@@ -1165,6 +1198,7 @@ function main() {
     setTimeout(() => launch.launchables().catch(() => {}), 20000); // what she can open, before you ask
     // a screen plugged in, unplugged, or rearranged: her window fitted again, and she learns of it
     const screensChanged = () => {
+      if (quitting || !overlay || overlay.isDestroyed()) return;
       fitOverlay();
       windowWatch?.refresh();
       rebuildTray();
@@ -1173,16 +1207,28 @@ function main() {
     screen.on('display-metrics-changed', screensChanged);
     screen.on('display-added', screensChanged);
     screen.on('display-removed', screensChanged);
+    stopScreenWatch = () => {
+      screen.removeListener('display-metrics-changed', screensChanged);
+      screen.removeListener('display-added', screensChanged);
+      screen.removeListener('display-removed', screensChanged);
+    };
     // after sleep or a locked screen, once Windows has settled
     powerMonitor.on('resume', () => setTimeout(rearmOverlay, 2000));
     powerMonitor.on('unlock-screen', () => setTimeout(rearmOverlay, 1000));
   });
 
+  app.on('before-quit', () => {
+    quitting = true;
+    stopScreenWatch();
+    clearTimeout(demoTimer);
+    windowWatch?.stop();
+  });
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     windowWatch?.stop();
   });
-  app.on('window-all-closed', (e) => e.preventDefault());
+  // This event has no Event argument. A listener keeps her tray app alive.
+  app.on('window-all-closed', () => {});
 }
 
 main();

@@ -206,6 +206,13 @@ export class Jealousy {
     return this.brain.t.jealous;
   }
 
+  configure(config) {
+    this.enabled = config.jealous !== false;
+    this.closePages = config.closePages !== false;
+    // The helper only sends changes. Re-enabling her must also notice an unchanged foreground tab.
+    this.onWindows(this.capri.windows);
+  }
+
   // The first of these AIs (keys) that's a rival of hers, or null.
   rivalOf(keys) {
     const own = OWN[this.brain.assistant] || [];
@@ -216,6 +223,7 @@ export class Jealousy {
     const key = this.enabled ? this.rivalOf(data.ai) : null;
     const page = !key ? null : data.dl ? 'download' : data.pages?.includes(key) ? 'site' : null;
     if (key === this.front?.key && data.fg === this.front.id) {
+      if (page !== this.front.page) this.front.since = Date.now();
       this.front.page = page; // another page in the same tab
       return;
     }
@@ -247,7 +255,7 @@ export class Jealousy {
     const f = this.front;
     for (const k of Object.keys(this.lately)) if (k !== f?.key) this.lately[k] *= 0.9989; // about half every 10 min
     if (this.sulk && now > this.sulk.until) this.sulk = null;
-    if (!f) return;
+    if (!this.enabled || !f) return;
     this.lately[f.key] = (this.lately[f.key] || 0) + 1000;
     this.count(f.key, 1000);
     if (this.chasing || !this.free()) return;
@@ -344,6 +352,8 @@ export class Jealousy {
     this.wait[key] = Date.now() + RETRY_MS;
     const at = this.capri.windows.wins.find((w) => w.id === f.id) || win;
     const why = await this.capri.zapShut(at, async () => {
+      // The animation takes time too: the setting or the page may have changed since the warning.
+      if (!this.still(f)) return 'left';
       const why = await this.shut(f.id, key);
       if (why === '') this.panel.say({ kind: 'info', face: 'smug', line: fmt(pick(t.closed), { rival }), hold: 3500 });
       return why;
