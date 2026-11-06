@@ -94,3 +94,23 @@ test('her voice: each line once, only what is added under an answer, a new line 
   await bad.say('two');
   assert.deepStrictEqual(errors, ['auth']);
 });
+
+test('Fish Audio speech-to-text: the recording goes as a multipart upload, and only the words come back', async () => {
+  let sent;
+  global.fetch = async (url, init) => {
+    sent = { url, init };
+    return { ok: true, status: 200, json: async () => ({ text: '<|speaker:0|> focus for  45 minutes ', duration: 2 }) };
+  };
+  const text = await speech.hear(Uint8Array.from([82, 73, 70, 70]), { key: 'k', language: 'en' });
+  assert.strictEqual(text, 'focus for 45 minutes');
+  assert.strictEqual(sent.url, 'https://api.fish.audio/v1/asr');
+  assert.strictEqual(sent.init.headers.authorization, 'Bearer k');
+  assert.strictEqual(sent.init.headers.model, 'transcribe-1-pro');
+  assert.ok(sent.init.body instanceof FormData);
+  assert.strictEqual(sent.init.body.get('language'), 'en');
+  assert.strictEqual(sent.init.body.get('diarize'), 'false');
+  assert.ok(sent.init.body.get('audio') instanceof Blob);
+  await assert.rejects(speech.hear(Uint8Array.from([1]), {}), (err) => err.code === 'nokey');
+  global.fetch = async () => ({ ok: false, status: 402, json: async () => ({ message: 'no credit' }) });
+  await assert.rejects(speech.hear(Uint8Array.from([1]), { key: 'k' }), (err) => err.code === 'credit');
+});

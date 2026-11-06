@@ -74,5 +74,9 @@ contextBridge.exposeInMainWorld('host', {
   setFishKey: (key) => ipcRenderer.invoke('speech:setKey', key),
   setFishVoice: (id) => ipcRenderer.invoke('speech:setVoice', id),
   fishPage: () => ipcRenderer.send('speech:page'),
+  askMic: () => ipcRenderer.invoke('mic:ask'),
+  hear: (wav) => ipcRenderer.invoke('speech:hear', wav),
+  focusCloseTab: (id, host) => ipcRenderer.invoke('focus:closeTab', { id, host }),
+  focusHideApp: () => ipcRenderer.invoke('focus:hideApp'),
   focusOverlay: (on) => ipcRenderer.send('overlay:focus', Boolean(on)),
 });

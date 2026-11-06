@@ -14,6 +14,8 @@ import { Reminders, clock } from './reminders.js';
 import { Look } from './look.js';
 import { Pc } from './pc.js';
 import { Speech } from './speech.js';
+import { Focus } from './focus.js';
+import { Listen } from './listen.js';
 import { linesFor } from './lines.js';
 import { pick, fmt, reducedMotion } from './util.js';
 
@@ -288,6 +290,13 @@ async function boot() {
   chat.look = look; // "regarde mon écran" in her chat
   // your PC as she feels it (pc.js): the processor, the battery, the network, a USB stick, a game
   const pc = new Pc({ capri, panel, brain, host, voice, chat, guide });
+  // Focus Guard: a stretch of time with the distractions kept off you (focus.js)
+  const focus = new Focus({ capri, panel, brain, bond, host });
+  focus.configure(config);
+  chat.focus = focus;
+  // talking to her out loud: ⌃⌥T, into her chat, her answer out loud (listen.js)
+  const listen = new Listen({ host, panel, chat, brain, capri, speech });
+  listen.configure(config);
   pc.enabled = config.pcReact !== false;
   let wantsOut = config.visible !== false; // not put away in your settings (Ctrl+Alt+C, her menu)
   pc.wantsOut = () => wantsOut;
@@ -562,12 +571,16 @@ async function boot() {
   // what's in here, for --dev scripts (debug route `eval`)
   window.dev = { capri, brain, panel, chat, guide, fx, voice, bond, jealousy, reminders, look, pc, setup, screens: () => screens };
 
-  host.onClaudeEvent((evt) => brain.handle(evt));
+  host.onClaudeEvent((evt) => {
+    brain.handle(evt);
+    focus.onClaude(evt);
+  });
   const onWindows = (data) => {
     capri.setWindows(data);
     brain.onWindows(data);
     jealousy.onWindows(data);
     pc.onWindows(data);
+    focus.onWindows(data);
   };
   host.onWindows(onWindows);
   // the windows as they are now: the watcher only speaks again when something changes
@@ -654,6 +667,8 @@ async function boot() {
   host.onConfig((cfg) => {
     voice.configure(cfg);
     speech.configure(cfg);
+    focus.configure(cfg);
+    listen.configure(cfg);
     followOn = cfg.follow !== false;
     look.configure(cfg);
     pc.enabled = cfg.pcReact !== false;
@@ -702,6 +717,15 @@ async function boot() {
         break;
       case 'setupChat': // "Set it up with her" in her menu's AI model
         setup.chat();
+        break;
+      case 'focus': // her menu › Focus Guard › 25, 45… minutes
+        focus.start(cmd.minutes, cmd.task || '');
+        break;
+      case 'focusStop':
+        focus.stop();
+        break;
+      case 'listen': // ⌃⌥T, or her menu: she listens, or stops listening
+        listen.toggle();
         break;
       case 'setupFishKey': // her menu › Her voice › Fish Audio key
         fishKey();

@@ -531,8 +531,6 @@ func mediaKey(_ key: Int) -> Bool {
 
 // MARK: - the watch
 
-// the host of the page in front, in the snapshot: only for the build's own checks (CI)
-let DEBUG_ADDRESS = ProcessInfo.processInfo.environment["CAPRI_DEBUG_ADDRESS"] == "1"
 var capriPid: pid_t = 0
 var overlayId = 0
 var frontPid: pid_t = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
@@ -595,7 +593,10 @@ func snapshot() -> (String, Win?) {
     "fg": fgId, "fgPid": Int(frontPid), "taskbar": false, "ai": detected.keys, "pages": detected.pages, "dl": detected.download,
     "game": gameOf(app).map { $0 as Any } ?? NSNull(), "usb": usb(), "plug": plug, "wins": list,
   ]
-  if DEBUG_ADDRESS { snap["host"] = page.url.flatMap { URL(string: $0)?.host }.map { $0 as Any } ?? NSNull() }
+  // for Focus Guard: the domain of the page in front (never its path or title) and the app's name
+  let host = page.complete ? page.url.flatMap { URL(string: $0)?.host?.lowercased() } : nil
+  snap["host"] = host.map { $0 as Any } ?? NSNull()
+  snap["app"] = app?.localizedName ?? ""
   return (json(snap), fg)
 }
 
@@ -638,13 +639,34 @@ func closePage(_ id: Int, _ key: String) -> String {
   return sent ? "" : "error"
 }
 
+// Focus Guard: closes the tab in window `id` if the page in front is still on `domain` (or under it).
+func closeDomain(_ id: Int, _ domain: String) -> String {
+  guard AXIsProcessTrusted() else { return "access" }
+  guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != capriPid else { return "front" }
+  let pid = app.processIdentifier
+  guard let fg = frontWindow(windowList(skip: overlayId), pid: pid), fg.id == id else { return "front" }
+  guard isBrowser(app) else { return "browser" }
+  let now = readAddress(pid, gecko: isGecko(app))
+  if now.timedOut { return "late" }
+  let want = domain.lowercased()
+  guard now.complete, let host = now.url.flatMap({ URL(string: $0)?.host?.lowercased() }),
+        host == want || host.hasSuffix("." + want) else { return "page" }
+  guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+        frontWindow(windowList(skip: overlayId), pid: pid)?.id == id else { return "front" }
+  let held = CGEventSource.flagsState(.combinedSessionState)
+  if !held.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]).isEmpty { return "keys" }
+  let sent = press(keyCode("w", fallback: 13), flags: .maskCommand, pid: pid)
+  addressRead = nil
+  return sent ? "" : "error"
+}
+
 func listenForAsks() {
   Thread.detachNewThread {
     while let line = readLine() {
       let ask = line.split(separator: " ").map(String.init)
-      guard ask.count == 4, ask[0] == "close", let id = Int(ask[1]), let n = Int(ask[3]) else { continue }
+      guard ask.count == 4, ["close", "closehost"].contains(ask[0]), let id = Int(ask[1]), let n = Int(ask[3]) else { continue }
       DispatchQueue.main.async {
-        emit(json(["closed": n, "why": closePage(id, ask[2])]))
+        emit(json(["closed": n, "why": ask[0] == "close" ? closePage(id, ask[2]) : closeDomain(id, ask[2])]))
       }
     }
     exit(0) // our input closed: Capri is gone
@@ -769,6 +791,11 @@ case "unhide":
   emit("ok")
 case "place":
   place(pid_t(number(2)), CGRect(x: number(3), y: number(4), width: number(5), height: number(6)))
+case "hideapp":
+  // Focus Guard: a distracting app out of the way (never Capri, never Finder)
+  let target = NSRunningApplication(processIdentifier: pid_t(number(2)))
+  let ok = target != nil && target?.bundleIdentifier != "com.apple.finder" && (target?.hide() ?? false)
+  emit(ok ? "ok" : "none")
 case "activate":
   let ok = NSRunningApplication(processIdentifier: pid_t(number(2)))?.activate(options: []) ?? false
   emit(ok ? "ok" : "none")

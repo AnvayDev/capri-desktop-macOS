@@ -65,4 +65,39 @@ async function speak(text, { key, voice = '', model = '', language = '' } = {}) 
   return audio;
 }
 
-module.exports = { speak, MODELS, SpeechError };
+// What you said, from a recording (WAV): Fish Audio's speech-to-text, with the same key.
+async function hear(wav, { key, language = '' } = {}) {
+  if (!key) throw new SpeechError('no Fish Audio key', 'nokey');
+  if (!wav?.length) return '';
+  const form = new FormData();
+  form.append('audio', new Blob([wav], { type: 'audio/wav' }), 'speech.wav');
+  form.append('ignore_timestamps', 'true');
+  form.append('tag_audio_events', 'false');
+  form.append('diarize', 'false');
+  if (/^[a-z]{2}$/.test(language)) form.append('language', language);
+  let res;
+  try {
+    res = await fetch('https://api.fish.audio/v1/asr', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}`, model: 'transcribe-1-pro' },
+      body: form,
+      signal: AbortSignal.timeout(60000),
+    });
+  } catch (err) {
+    throw new SpeechError(`Fish Audio can't be reached (${err.message})`, 'net');
+  }
+  if (!res.ok) {
+    let message = `Fish Audio answered ${res.status}`;
+    try {
+      const err = await res.json();
+      if (err?.message) message = `Fish Audio: ${err.message}`;
+    } catch {
+      // not JSON
+    }
+    throw new SpeechError(message, res.status === 401 || res.status === 403 ? 'auth' : res.status === 402 ? 'credit' : 'bad');
+  }
+  const body = await res.json();
+  return String(body.text || '').replace(/<\|[^|]*\|>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+module.exports = { speak, hear, MODELS, SpeechError };

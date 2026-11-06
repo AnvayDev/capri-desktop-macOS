@@ -18,7 +18,7 @@
     "hooks:agy:uninstall": "node scripts/install-hooks-agy.js --uninstall",
     "check:llm": "node scripts/check-llm.js",
     "test:hooks": "node --test tests/hooks.test.js",
-    "test": "node --test tests/hooks.test.js tests/jealousy.test.js tests/mac-watch.test.js tests/overlay-lifecycle.test.js tests/speech.test.js",
+    "test": "node --test tests/hooks.test.js tests/jealousy.test.js tests/mac-watch.test.js tests/overlay-lifecycle.test.js tests/speech.test.js tests/focus.test.js",
     "test:mac": "node scripts/test-mac.js",
     "dist": "electron-builder --win",
     "build:mac": "sh scripts/build-mac.sh",
@@ -94,7 +94,8 @@
       ],
       "extendInfo": {
         "LSUIElement": true,
-        "NSAppleEventsUsageDescription": "Capri tells System Events to switch dark mode, and to shut down or restart when you ask her to in her chat."
+        "NSAppleEventsUsageDescription": "Capri tells System Events to switch dark mode, and to shut down or restart when you ask her to in her chat.",
+        "NSMicrophoneUsageDescription": "Capri listens only while you talk to her (⌃⌥T), and sends what you said to Fish Audio to turn it into text."
       }
     },
     "dmg": {

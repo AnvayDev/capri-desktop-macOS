@@ -19,7 +19,7 @@ const SCRIPT = path.join(__dirname, 'windows.ps1').replace(`app.asar${path.sep}`
 
 function startWindowWatch({ overlay, onUpdate, onSpace }) {
   if (process.platform === 'darwin') return startMacWatch({ overlay, onUpdate, onSpace });
-  if (process.platform !== 'win32') return { stop() {}, refresh() {}, close: async () => 'windows', frontPid: () => 0 };
+  if (process.platform !== 'win32') return { stop() {}, refresh() {}, close: async () => 'windows', closeHost: async () => 'windows', frontPid: () => 0 };
 
   let child = null;
   let stopped = false;
@@ -85,6 +85,7 @@ function startWindowWatch({ overlay, onUpdate, onSpace }) {
   start();
   return {
     frontPid: () => 0,
+    closeHost: async () => 'windows', // Windows: Focus Guard can't read page addresses there yet
     stop() {
       stopped = true;
       child?.kill();
@@ -136,6 +137,8 @@ function startMacWatch({ overlay, onUpdate, onSpace }) {
       fg: last.fg, taskbar: false, ai: Array.isArray(last.ai) ? last.ai : [],
       pages: Array.isArray(last.pages) ? last.pages : [], dl: Boolean(last.dl),
       game: last.game || null, usb: Array.isArray(last.usb) ? last.usb : [], plug: last.plug || null, wins,
+      // Focus Guard: the domain of the page in front, and the app in front (never a title)
+      host: typeof last.host === 'string' ? last.host : null, app: typeof last.app === 'string' ? last.app : '',
     });
   };
 
@@ -183,6 +186,16 @@ function startMacWatch({ overlay, onUpdate, onSpace }) {
     proc.on('exit', gone);
   };
 
+  const ask = (verb, id, arg) => {
+    if (stopped || overlay.isDestroyed() || !child || child.stdin.destroyed || !arg) return Promise.resolve('gone');
+    const n = ++asks;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => answer(n, 'late'), 3000);
+      asked.set(n, { resolve, timer });
+      child.stdin.write(`${verb} ${Math.trunc(Number(id)) || 0} ${arg} ${n}\n`);
+    });
+  };
+
   // her window needs a number before the helper can leave it out: once it's on screen
   if (overlay.isVisible()) start();
   else overlay.once('show', start);
@@ -200,13 +213,11 @@ function startMacWatch({ overlay, onUpdate, onSpace }) {
     },
     refresh: send,
     close(id, key) {
-      if (stopped || overlay.isDestroyed() || !child || child.stdin.destroyed) return Promise.resolve('gone');
-      const n = ++asks;
-      return new Promise((resolve) => {
-        const timer = setTimeout(() => answer(n, 'late'), 3000);
-        asked.set(n, { resolve, timer });
-        child.stdin.write(`close ${Math.trunc(Number(id)) || 0} ${String(key).replace(/\W/g, '')} ${n}\n`);
-      });
+      return ask('close', id, String(key).replace(/\W/g, ''));
+    },
+    // Focus Guard: the tab in window `id`, if it's still on that domain
+    closeHost(id, host) {
+      return ask('closehost', id, String(host).toLowerCase().replace(/[^a-z0-9.-]/g, ''));
     },
     // the app in front, as the helper saw it last (to give it the keyboard back after her chat)
     frontPid: () => Number(last?.fgPid) || 0,

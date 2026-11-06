@@ -344,6 +344,18 @@ reports, her chat answers. **Voice model…** takes a Fish Audio voice model's I
 Fish Audio's default voice. Only the text of each line goes to Fish Audio; the key stays on your Mac, encrypted.
 Her menu › Sound › Mute silences her voice too.
 
+**Focus Guard:** her menu › **Focus Guard** › 25, 45, 60 or 90 minutes, or tell her "focus for 45 minutes on the
+API". A countdown runs on her ticker. Open a distracting site (YouTube, Reddit, X, Instagram, TikTok, Twitch,
+Netflix…) or app (Discord, Steam, Messages…) and she warns you, then closes the tab or hides the app. "5 more
+minutes" works three times per session, with less patience each time. At the end: her victory, and a recap (time,
+what she blocked, what Claude got done). Sessions you finish count toward her sync and a daily streak. The lists are
+`focusSites` and `focusApps` in her `config.json`. On a Mac she knows a page by its domain only (never its path or
+title); closing tabs needs Accessibility, like her jealousy.
+
+**Talk to her out loud:** press **⌃⌥T** (or her menu › Talk to her out loud) and speak. She stops listening when
+you stop talking, Fish Audio turns it into text (the same key as her voice), it goes into her chat, and her answer
+comes back out loud. The microphone is on only while she listens; macOS asks once for it.
+
 ### What's Claude Code? Do I need it?
 
 [Claude Code](https://code.claude.com/docs/en/quickstart) is Anthropic's coding assistant: in a terminal, in VS Code,

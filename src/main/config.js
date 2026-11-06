@@ -43,6 +43,10 @@ const DEFAULTS = {
   voice: true,       // she says her lines out loud with Fish Audio, once its key is set (speech.js)
   fishVoice: '',     // the Fish Audio voice model she speaks with (its ID; '': Fish Audio's default)
   fishModel: '',     // Fish Audio's speech model ('': its default)
+  // Focus Guard (focus.js): what distracts you, by the domain of a page or the name of an app
+  focusSites: ['youtube.com', 'reddit.com', 'x.com', 'twitter.com', 'instagram.com', 'tiktok.com', 'facebook.com', 'twitch.tv', 'netflix.com'],
+  focusApps: ['Discord', 'Steam', 'Epic Games Launcher', 'Messages', 'WhatsApp', 'Telegram'],
+  focusStats: null,  // { date, minutes, sessions, blocked, streak } (focus.js)
 };
 
 let cache = null;

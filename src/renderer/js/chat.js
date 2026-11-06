@@ -27,6 +27,13 @@ const LOADING_AFTER_MS = 5000;
 const CLOSE_TAG = /\[\[\s*close\s*:?\s*([^\]]*)\]\]/i; // [[close: AM Music]] at the end of her answer
 // "close", "shut down", "ferme", "quitte", "cierra", "fecha", "закрой"... in any of her languages
 const CLOSE_ASK = /\b(close|shut|quit|kill|exit)|ferm|quitt|coupe|arr[êe]t|cierr|cerra|fech|закр|выключ/i;
+// Focus Guard, in her languages: "focus for 45 minutes on the API", "mode focus 25 min", "stop focus"
+const FOCUS_WORD = /\bfocus\b|\bconcentr|\bfoco\b|\benf[oó]ca|фокус|сосредоточ/i;
+const FOCUS_STOP = /\b(stop|end|quit|cancel)\b|arr[êe]te|termine|\bpara\b|parar|det[eé]n|cancela|стоп|останов|хватит/i;
+const FOCUS_TIME = /(\d{1,3})\s*(h|hours?|heures?|horas?|час\p{L}*|m|mins?|minutes?|minutos?|мин\p{L}*)(?!\p{L})/iu;
+const FOCUS_TASK = /(?<!\p{L})(?:on|sur|en|em|no|na|con|над)\s+(.{2,40}?)[.!?]*$/iu;
+// a session asked for, not just the word ("can you focus on my question" isn't one)
+const FOCUS_START = /\b(mode|guard|session|timer|start|pomodoro)\b|lance|démarre|modo|empieza|come[çc]a|режим|начн|запусти/i;
 // browser tabs, in her languages: "close my youtube tabs", "ferme l'onglet netflix", "cierra la pestaña"...
 const TAB_WORD = /\btabs?\b|onglets?|pesta[ñn]as?|\babas?\b|вкладк\S*/i;
 // what's left of "close my youtube tabs" once the asking is taken out: "youtube"
@@ -499,6 +506,13 @@ export class Chat {
     const memo = MEMO_ASK.exec(text)?.[1]?.trim();
     if (memo) return { kind: 'memo', text: memo };
     if (this.look && LOOK_ASK.test(text)) return { kind: 'look' };
+    if (this.focus && FOCUS_WORD.test(text) && count <= 14 && (FOCUS_TIME.test(text) || FOCUS_START.test(text) || FOCUS_STOP.test(text) || count <= 3)) {
+      if (FOCUS_STOP.test(text) && !FOCUS_TIME.test(text)) return { kind: 'focusStop' };
+      const time = FOCUS_TIME.exec(text);
+      const minutes = time ? Number(time[1]) * (/^(h|hours?|heures?|horas?|час)/i.test(time[2]) ? 60 : 1) : 25;
+      const task = FOCUS_TASK.exec(text.replace(FOCUS_TIME, ''))?.[1]?.trim() || '';
+      return { kind: 'focus', minutes, task };
+    }
     const pc = this.askedPc(text, count);
     if (pc) return pc;
     if (SHOT_ASK.test(text)) return { kind: 'shot' };
@@ -698,6 +712,11 @@ export class Chat {
   // Doing it now. Resolves with her line about it ({ line, face }), or null if there was nothing to do.
   async doNow(asked) {
     if (asked.kind === 'pc') return this.pcNow(asked);
+    if (asked.kind === 'focus') return { line: this.focus.start(asked.minutes, asked.task, { quiet: true }), face: 'smug' };
+    if (asked.kind === 'focusStop') {
+      const s = this.focus.stop({ early: true });
+      return s ? null : { line: this.brain.t.focus.stopped[0].replace('{minutes}', '0'), face: 'aside' };
+    }
     const { t } = this;
     const custom = this.brain.custom;
     if (asked.kind === 'remind') {

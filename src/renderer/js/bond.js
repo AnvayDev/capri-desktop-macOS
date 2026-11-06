@@ -16,7 +16,7 @@ import { pick, fmt, today } from './util.js';
 export const STAGES = [0, 100, 300, 550, 850];
 const FULL = 1000;
 // the most a day from each source
-const CAPS = { day: 10, time: 18, chat: 20, click: 4, claude: 10, remind: 6, pet: 5 };
+const CAPS = { day: 10, time: 18, chat: 20, click: 4, claude: 10, remind: 6, pet: 5, focus: 15 };
 const SAVE_MS = 15000;
 
 // How she feels right now, after something just happened between you, told to her chat so it

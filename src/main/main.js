@@ -379,6 +379,15 @@ function rebuildTray() {
     ru: { menu: 'Её голос (Fish Audio)', on: 'Произносить реплики вслух', key: 'Ключ Fish Audio…', voice: 'Модель голоса…', model: 'Модель Fish Audio', modelDefault: 'По умолчанию' },
   };
   const VOICE = VOICES[resolveLang(cfg.lang)] || VOICES.en;
+  const FOCUSES = {
+    fr: { menu: 'Focus Guard', minutes: '{n} minutes', stop: 'Arrêter', talk: 'Lui parler à voix haute' },
+    en: { menu: 'Focus Guard', minutes: '{n} minutes', stop: 'Stop', talk: 'Talk to her out loud' },
+    es: { menu: 'Focus Guard', minutes: '{n} minutos', stop: 'Parar', talk: 'Hablarle en voz alta' },
+    pt: { menu: 'Focus Guard', minutes: '{n} minutos', stop: 'Parar', talk: 'Falar com ela em voz alta' },
+    ru: { menu: 'Focus Guard', minutes: '{n} минут', stop: 'Остановить', talk: 'Говорить с ней вслух' },
+  };
+  const FOCUS = FOCUSES[resolveLang(cfg.lang)] || FOCUSES.en;
+  const fmtMinutes = (text, n) => text.replace('{n}', n);
   const TABS = { fr: 'La laisser fermer mes onglets…', en: 'Let her close my tabs…', es: 'Dejarla cerrar mis pestañas…', pt: 'Deixar ela fechar minhas abas…', ru: 'Разрешить ей закрывать вкладки…' };
   const tabsItem = mac.MAC ? [{ label: TABS[resolveLang(cfg.lang)] || TABS.en, click: allowTabs }] : [];
 
@@ -407,6 +416,15 @@ function rebuildTray() {
     ...(cfg.claude ? [{ label: t.report, click: () => sendCommand('report') }] : []),
     { label: t.talk, click: () => sendCommand('chat') },
     { label: t.lookNow, click: () => sendCommand('look') },
+    {
+      label: FOCUS.menu,
+      submenu: [
+        ...[25, 45, 60, 90].map((minutes) => ({ label: fmtMinutes(FOCUS.minutes, minutes), click: () => sendCommand('focus', { minutes }) })),
+        { type: 'separator' },
+        { label: FOCUS.stop, click: () => sendCommand('focusStop') },
+      ],
+    },
+    { label: FOCUS.talk, accelerator: 'Control+Alt+T', click: () => sendCommand('listen') },
     {
       label: t.reminders,
       submenu: reminders.length
@@ -1033,6 +1051,28 @@ function registerIpc() {
     return res;
   });
   ipcMain.on('speech:page', () => shell.openExternal('https://fish.audio/app/api-keys/'));
+  // talking to her (listen.js): the microphone, macOS asked first; then what you said, as text
+  ipcMain.handle('mic:ask', async () => {
+    if (!mac.MAC) return true;
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return true;
+    return systemPreferences.askForMediaAccess('microphone').catch(() => false);
+  });
+  ipcMain.handle('speech:hear', async (_e, wav) => {
+    const cfg = config.load();
+    try {
+      const text = await speech.hear(Buffer.from(wav), { key: fishKey(cfg), language: resolveLang(cfg.lang) });
+      return { ok: true, text };
+    } catch (err) {
+      return { ok: false, code: err.code || 'error', error: err.message };
+    }
+  });
+  // Focus Guard (focus.js): the distracting tab in front closed, or the app in front hidden
+  ipcMain.handle('focus:closeTab', (_e, { id, host }) => windowWatch?.closeHost(id, host) ?? 'gone');
+  ipcMain.handle('focus:hideApp', async () => {
+    const pid = windowWatch?.frontPid() || 0;
+    if (!mac.MAC || !pid || pid === process.pid) return false;
+    return (await mac.run(['hideapp', pid]).catch(() => '')) === 'ok';
+  });
   // typing to her: the overlay takes the keyboard while the chat is open, and gives it back after
   ipcMain.on('overlay:focus', (_e, on) => {
     if (!overlay) return;
@@ -1273,6 +1313,8 @@ function main() {
       onDebug: DEV ? debugHandler : null,
     });
     globalShortcut.register('Control+Alt+C', () => toggleVisible());
+    // ⌃⌥T: talk to her out loud (listen.js); again to stop early. (⌃⌥Space switches keyboards on a Mac.)
+    if (!globalShortcut.register('Control+Alt+T', () => sendCommand('listen'))) console.error('[capri] Control+Alt+T is taken: talk to her from her menu');
     llm.restoreClaude(readMemory().claude);
     refreshModels(); // for her menu's model list
     setTimeout(() => launch.launchables().catch(() => {}), 20000); // what she can open, before you ask
