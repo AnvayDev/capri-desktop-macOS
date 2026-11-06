@@ -98,12 +98,19 @@ jobs:
           EOF
 
       - name: Helper reads a browser's address without stalling
+        timeout-minutes: 5
         run: |
           set -e
           H=native/mac/build/capri-helper
           for B in Safari "Google Chrome"; do
             [ -d "/Applications/$B.app" ] || { echo "no $B here"; continue; }
-            open -a "$B" https://example.com
+            # Chrome's first launch stops on its welcome screen: started straight, without it
+            if [ "$B" = "Google Chrome" ]; then
+              "/Applications/$B.app/Contents/MacOS/$B" --no-first-run --no-default-browser-check \
+                --user-data-dir="$RUNNER_TEMP/chrome" https://example.com > /dev/null 2>&1 &
+            else
+              open -a "$B" https://example.com
+            fi
             sleep 8
             osascript -e "tell application \"$B\" to activate" || true
             sleep 2
@@ -119,10 +126,11 @@ jobs:
           print(os.environ['B'], '| snapshots:', len(snaps), '| hosts read:', hosts, '| close answered:', answer[0]['why'])
           assert 'example.com' in hosts, 'the address bar was not read'
           EOF
-            osascript -e "tell application \"$B\" to quit" || true
+            osascript -e "tell application \"$B\" to quit" || pkill -x "$B" || true
           done
 
       - name: Helper follows a full-screen browser
+        timeout-minutes: 4
         run: |
           set -e
           H=native/mac/build/capri-helper
