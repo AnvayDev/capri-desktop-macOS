@@ -40,6 +40,9 @@ const DEFAULTS = {
   pcReact: true,     // she reacts to your PC: the processor at full tilt, the battery, the network, a USB stick, a game (pc.js)
   watchScreen: false, // she looks at your screen now and then and says something about it (look.js)
   lookAsked: false,  // she told you what looking means (where the picture goes) and you said yes
+  voice: true,       // she says her lines out loud with Fish Audio, once its key is set (speech.js)
+  fishVoice: '',     // the Fish Audio voice model she speaks with (its ID; '': Fish Audio's default)
+  fishModel: '',     // Fish Audio's speech model ('': its default)
 };
 
 let cache = null;

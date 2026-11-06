@@ -17,8 +17,8 @@ const { screen } = require('electron');
 // in the installed app it sits next to the app archive (asarUnpack), where PowerShell can read it
 const SCRIPT = path.join(__dirname, 'windows.ps1').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
 
-function startWindowWatch({ overlay, onUpdate }) {
-  if (process.platform === 'darwin') return startMacWatch({ overlay, onUpdate });
+function startWindowWatch({ overlay, onUpdate, onSpace }) {
+  if (process.platform === 'darwin') return startMacWatch({ overlay, onUpdate, onSpace });
   if (process.platform !== 'win32') return { stop() {}, refresh() {}, close: async () => 'windows', frontPid: () => 0 };
 
   let child = null;
@@ -108,7 +108,7 @@ function startWindowWatch({ overlay, onUpdate }) {
 // macOS: the same, from her native helper (native/mac/CapriHelper.swift). Its bounds are already in
 // screen points, Electron's own coordinates; a window is "maximized" when it fills the work area
 // of its screen (zoomed, or full screen).
-function startMacWatch({ overlay, onUpdate }) {
+function startMacWatch({ overlay, onUpdate, onSpace }) {
   const mac = require('./mac');
   let child = null;
   let stopped = false;
@@ -161,6 +161,7 @@ function startMacWatch({ overlay, onUpdate }) {
         return;
       }
       if ('closed' in msg) return answer(msg.closed, String(msg.why ?? 'error'));
+      if ('space' in msg) return onSpace?.(); // another Space: a full-screen app, say
       last = msg;
       send();
     });

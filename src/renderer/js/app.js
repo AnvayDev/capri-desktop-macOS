@@ -13,6 +13,7 @@ import { Bond, Jealousy } from './bond.js';
 import { Reminders, clock } from './reminders.js';
 import { Look } from './look.js';
 import { Pc } from './pc.js';
+import { Speech } from './speech.js';
 import { linesFor } from './lines.js';
 import { pick, fmt, reducedMotion } from './util.js';
 
@@ -80,6 +81,9 @@ async function boot() {
   voice.configure(config);
   host.listSounds().then((list) => list.length && voice.loadCustom(list));
 
+  // her voice: everything she says, out loud through Fish Audio (speech.js)
+  const speech = new Speech(host);
+  speech.configure(config);
   const panel = new Panel({
     panel: document.getElementById('panel'),
     ticker: document.getElementById('ticker'),
@@ -224,7 +228,33 @@ async function boot() {
 
   // Her guide (guide.js): her welcome on first launch, and "How does it work?" in her menu,
   // where she takes you to things and points at them.
+  panel.onSpeak = (text, opts) => speech.say(text, opts);
   const guide = new Guide({ capri, panel, voice, host, brain });
+  // Fish Audio refused (a bad key, no credit left): said once, in writing only
+  speech.onError = (res) => panel.say({ kind: 'info', face: 'aside', silent: true, line: fmt(brain.t.voiceSetup.refused, { error: res.error || res.code }), hold: 7000 });
+  // her menu › Her voice: the key, then which voice, in her panel
+  const fishKey = (error = '') => guide.scene(async () => {
+    const t = brain.t.voiceSetup;
+    const got = await guide.askText({
+      face: error ? 'wide' : 'look', line: t.key, quote: error ? `${t.keyBad} ${error}` : t.keyHow, secret: true,
+      placeholder: t.placeholder, tag: 'FISH', actions: [{ id: 'page', label: t.where }],
+      onAction: (id) => id === 'page' && (host.fishPage(), true),
+    });
+    if (!got?.text) return;
+    const res = await host.setFishKey(got.text);
+    if (!res.ok) return fishKey(res.error || res.code);
+    speech.play(res.audio);
+    panel.say({ kind: 'info', face: 'laugh', silent: true, line: t.done, hold: 3500 });
+  });
+  const fishVoice = (error = '') => guide.scene(async () => {
+    const t = brain.t.voiceSetup;
+    const got = await guide.askText({ face: error ? 'wide' : 'look', line: t.voice, quote: error ? `${t.voiceBad} ${error}` : t.voiceHow, placeholder: t.voicePlaceholder, tag: 'VOICE' });
+    if (!got || got.action) return;
+    const res = await host.setFishVoice(got.text || '');
+    if (!res.ok) return fishVoice(res.error || res.code);
+    speech.play(res.audio);
+    panel.say({ kind: 'info', face: 'laugh', silent: true, line: t.done, hold: 3500 });
+  });
   // Talking to her (chat.js): "Talk to her" in her menu, or the button when you click her idle.
   const chat = new Chat({ capri, panel, voice, host, brain });
   brain.onTalk = () => chat.start();
@@ -623,6 +653,7 @@ async function boot() {
 
   host.onConfig((cfg) => {
     voice.configure(cfg);
+    speech.configure(cfg);
     followOn = cfg.follow !== false;
     look.configure(cfg);
     pc.enabled = cfg.pcReact !== false;
@@ -671,6 +702,12 @@ async function boot() {
         break;
       case 'setupChat': // "Set it up with her" in her menu's AI model
         setup.chat();
+        break;
+      case 'setupFishKey': // her menu › Her voice › Fish Audio key
+        fishKey();
+        break;
+      case 'setupFishVoice': // her menu › Her voice › Voice model
+        fishVoice();
         break;
       case 'setupKey': // "API key or address" in her menu's AI model, or a service picked there that needs one
         setup.key();

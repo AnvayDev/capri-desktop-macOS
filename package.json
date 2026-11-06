@@ -18,7 +18,7 @@
     "hooks:agy:uninstall": "node scripts/install-hooks-agy.js --uninstall",
     "check:llm": "node scripts/check-llm.js",
     "test:hooks": "node --test tests/hooks.test.js",
-    "test": "node --test tests/hooks.test.js tests/jealousy.test.js tests/mac-watch.test.js tests/overlay-lifecycle.test.js",
+    "test": "node --test tests/hooks.test.js tests/jealousy.test.js tests/mac-watch.test.js tests/overlay-lifecycle.test.js tests/speech.test.js",
     "test:mac": "node scripts/test-mac.js",
     "dist": "electron-builder --win",
     "build:mac": "sh scripts/build-mac.sh",

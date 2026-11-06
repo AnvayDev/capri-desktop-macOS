@@ -122,6 +122,30 @@ jobs:
             osascript -e "tell application \"$B\" to quit" || true
           done
 
+      - name: Helper follows a full-screen browser
+        run: |
+          set -e
+          H=native/mac/build/capri-helper
+          open -a Safari https://example.com
+          sleep 6
+          osascript -e 'tell application "Safari" to activate'
+          osascript -e 'tell application "System Events" to tell process "Safari" to set value of attribute "AXFullScreen" of window 1 to true' || true
+          sleep 5
+          ( sleep 4; echo ) | CAPRI_DEBUG_ADDRESS=1 "$H" watch $$ 0 > full.jsonl
+          python3 - <<'EOF'
+          import json
+          lines = [json.loads(l) for l in open('full.jsonl') if l.strip()]
+          snaps = [l for l in lines if 'wins' in l]
+          assert snaps, 'no snapshot'
+          s = snaps[-1]
+          wins = {w['id']: w for w in s['wins']}
+          print('fg:', s['fg'], '| windows:', [(w['id'], w['w'], w['h']) for w in s['wins']][:6], '| host:', s.get('host'))
+          assert s['fg'] in wins, 'the window in front is not one she can act on'
+          big = max(w['w'] * w['h'] for w in s['wins'] if w['pid'] == s['fgPid'])
+          assert wins[s['fg']]['w'] * wins[s['fg']]['h'] == big, 'she picked a strip, not the full-screen window'
+          EOF
+          osascript -e 'tell application "Safari" to quit' || true
+
       - name: Build the DMG
         # This build uses an ad-hoc identity, with no certificate or signing secrets.
         # electron-builder otherwise skips even ad-hoc signing on pull requests.

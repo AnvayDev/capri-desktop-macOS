@@ -338,6 +338,12 @@ This fork keeps up with the original by itself: every day the **Sync from the or
 work into `main` and builds a fresh DMG. If that clashes with the Mac changes, it opens an issue instead. It needs
 Settings › Actions › General › Workflow permissions › **Read and write permissions**.
 
+**Her voice (Fish Audio):** her menu › **Her voice** › **Fish Audio key…**, paste a key from
+[fish.audio](https://fish.audio/app/api-keys/), and she says every line out loud: her reactions, her guide, her
+reports, her chat answers. **Voice model…** takes a Fish Audio voice model's ID (or its page's address); empty is
+Fish Audio's default voice. Only the text of each line goes to Fish Audio; the key stays on your Mac, encrypted.
+Her menu › Sound › Mute silences her voice too.
+
 ### What's Claude Code? Do I need it?
 
 [Claude Code](https://code.claude.com/docs/en/quickstart) is Anthropic's coding assistant: in a terminal, in VS Code,

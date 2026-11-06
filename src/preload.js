@@ -70,5 +70,9 @@ contextBridge.exposeInMainWorld('host', {
   webSearch: (query) => ipcRenderer.invoke('web:search', query),
   openSite: (address) => ipcRenderer.invoke('apps:site', address),
   closeTabs: (query) => ipcRenderer.invoke('tabs:close', query),
+  speak: (text) => ipcRenderer.invoke('speech:say', text),
+  setFishKey: (key) => ipcRenderer.invoke('speech:setKey', key),
+  setFishVoice: (id) => ipcRenderer.invoke('speech:setVoice', id),
+  fishPage: () => ipcRenderer.send('speech:page'),
   focusOverlay: (on) => ipcRenderer.send('overlay:focus', Boolean(on)),
 });

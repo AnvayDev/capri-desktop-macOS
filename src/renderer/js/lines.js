@@ -188,6 +188,8 @@ export const LINES = {
       },
     },
     // la mettre en route avec des boutons (setup.js) : Ollama, un modèle, une clé
+    // her voice through Fish Audio (speech.js): the key, and which voice
+    voiceSetup: { key: "Colle ta clé Fish Audio ici, et je parle.", keyHow: "Ce que je dis part chez Fish Audio pour devenir ma voix. Je garde la clé sur ce Mac, chiffrée.", keyBad: "Fish Audio n’en veut pas :", voice: "Quelle voix ? Colle l’ID d’un modèle de voix Fish Audio, ou son adresse.", voiceHow: "Laisse vide pour la voix par défaut de Fish Audio.", voiceBad: "Cette voix ne marche pas :", where: "Où en trouver une ?", placeholder: "Ta clé Fish Audio…", voicePlaceholder: "ID ou adresse du modèle…", done: "C’est ma voix maintenant.", refused: "Fish Audio a coupé ma voix : {error}. Change la clé dans mon menu › Sa voix." },
     setup: {
       who: 'Pour te parler, il me faut une IA.',
       why: { noOllama: 'Ollama n’est pas installé sur ce PC.', asleep: 'Ollama est installé, mais il dort.', noModel: 'Ollama n’a pas encore de modèle.' },
@@ -569,6 +571,8 @@ export const LINES = {
       },
     },
     // setting her up with buttons (setup.js): Ollama, a model, a key
+    // her voice through Fish Audio (speech.js): the key, and which voice
+    voiceSetup: { key: "Paste your Fish Audio key here, and I talk.", keyHow: "What I say goes to Fish Audio to become my voice. I keep the key on this Mac, encrypted.", keyBad: "Fish Audio won’t take it:", voice: "Which voice? Paste a Fish Audio voice model’s ID, or its address.", voiceHow: "Leave it empty for Fish Audio’s default voice.", voiceBad: "That voice doesn’t work:", where: "Where do I get one?", placeholder: "Your Fish Audio key…", voicePlaceholder: "Model ID or address…", done: "That’s my voice now.", refused: "Fish Audio cut my voice: {error}. Change the key in my menu › Her voice." },
     setup: {
       who: 'To talk with you, I need an AI.',
       why: { noOllama: 'Ollama isn’t installed on this PC.', asleep: 'Ollama is installed, but it’s asleep.', noModel: 'Ollama has no model yet.' },
@@ -944,6 +948,8 @@ export const LINES = {
       },
     },
     // ponerla en marcha con botones (setup.js): Ollama, un modelo, una clave
+    // her voice through Fish Audio (speech.js): the key, and which voice
+    voiceSetup: { key: "Pega aquí tu clave de Fish Audio y hablo.", keyHow: "Lo que digo va a Fish Audio para volverse mi voz. Guardo la clave en este Mac, cifrada.", keyBad: "Fish Audio no la acepta:", voice: "¿Qué voz? Pega el ID de un modelo de voz de Fish Audio, o su dirección.", voiceHow: "Déjalo vacío para la voz por defecto de Fish Audio.", voiceBad: "Esa voz no funciona:", where: "¿Dónde consigo una?", placeholder: "Tu clave de Fish Audio…", voicePlaceholder: "ID o dirección del modelo…", done: "Ahora esa es mi voz.", refused: "Fish Audio cortó mi voz: {error}. Cambia la clave en mi menú › Su voz." },
     setup: {
       who: 'Para hablar contigo, necesito una IA.',
       why: { noOllama: 'Ollama no está instalado en este PC.', asleep: 'Ollama está instalado, pero dormido.', noModel: 'Ollama aún no tiene ningún modelo.' },
@@ -1321,6 +1327,8 @@ export const LINES = {
       },
     },
     // deixar ela pronta com botões (setup.js): Ollama, um modelo, uma chave
+    // her voice through Fish Audio (speech.js): the key, and which voice
+    voiceSetup: { key: "Cola aqui a sua chave do Fish Audio e eu falo.", keyHow: "O que eu digo vai pro Fish Audio virar a minha voz. Eu guardo a chave neste Mac, criptografada.", keyBad: "O Fish Audio não aceitou:", voice: "Qual voz? Cola o ID de um modelo de voz do Fish Audio, ou o endereço dele.", voiceHow: "Deixa vazio pra voz padrão do Fish Audio.", voiceBad: "Essa voz não funciona:", where: "Onde eu consigo uma?", placeholder: "Sua chave do Fish Audio…", voicePlaceholder: "ID ou endereço do modelo…", done: "Agora essa é a minha voz.", refused: "O Fish Audio cortou a minha voz: {error}. Troca a chave no meu menu › A voz dela." },
     setup: {
       who: 'Pra falar com você, eu preciso de uma IA.',
       why: { noOllama: 'O Ollama não está instalado neste PC.', asleep: 'O Ollama está instalado, mas dormindo.', noModel: 'O Ollama ainda não tem nenhum modelo.' },
@@ -1700,6 +1708,8 @@ export const LINES = {
       },
     },
     // запустить её кнопками (setup.js): Ollama, модель, ключ
+    // her voice through Fish Audio (speech.js): the key, and which voice
+    voiceSetup: { key: "Вставь сюда ключ Fish Audio, и я заговорю.", keyHow: "То, что я говорю, уходит в Fish Audio и становится моим голосом. Ключ я храню на этом Mac, зашифрованным.", keyBad: "Fish Audio его не принимает:", voice: "Какой голос? Вставь ID модели голоса Fish Audio или её адрес.", voiceHow: "Оставь пустым для голоса Fish Audio по умолчанию.", voiceBad: "Этот голос не работает:", where: "Где его взять?", placeholder: "Твой ключ Fish Audio…", voicePlaceholder: "ID или адрес модели…", done: "Теперь это мой голос.", refused: "Fish Audio отключил мой голос: {error}. Поменяй ключ в меню › Её голос." },
     setup: {
       who: 'Чтобы говорить с тобой, мне нужен ИИ.',
       why: { noOllama: 'Ollama не установлена на этом ПК.', asleep: 'Ollama установлена, но спит.', noModel: 'В Ollama пока нет ни одной модели.' },

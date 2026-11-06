@@ -153,6 +153,7 @@ export class Panel {
     this.replayEnter();
     this.place();
     this.decode(msg.line || '', msg.kind);
+    if (msg.line && !msg.silent) this.onSpeak?.(msg.line); // out loud too (speech.js)
 
     if (msg.hold) this.hideTimer = setTimeout(() => this.hide(), msg.hold);
     return true;
@@ -338,6 +339,7 @@ export class Panel {
       this.line.textContent = chars.join('');
       this.line.classList.remove('is-streaming');
       this.glitchLine();
+      this.onSpeak?.(chars.join(''), { stream: true }); // her whole answer, out loud
     } else {
       // noise where the next characters land; still waiting for more, a little static at the end
       let tail = '';

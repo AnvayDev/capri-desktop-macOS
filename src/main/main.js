@@ -23,6 +23,7 @@ const launch = require('./launch');
 const files = require('./files');
 const mac = require('./mac');
 const tabs = require('./tabs');
+const speech = require('./speech');
 const { ASSISTANTS, assistant } = require('./assistants');
 const activeAssistant = () => assistant(config.load().assistant); // Claude Code or Codex
 const activeHooks = () => activeAssistant().hooks;
@@ -241,6 +242,7 @@ function createOverlay() {
     if (quitting || win.isDestroyed() || overlay !== win) return;
     fitOverlay();
     win.showInactive();
+    followSpace(); // once shown: before that, macOS may not keep it
   });
   overlay.webContents.on('render-process-gone', (_e, details) => {
     console.error('[capri] renderer gone:', details.reason);
@@ -252,6 +254,16 @@ function createOverlay() {
     });
     if (process.env.CAPRI_DEVTOOLS) overlay.webContents.openDevTools({ mode: 'detach' });
   }
+}
+
+// macOS: her window on every Space, full-screen apps' too, and on top there. Set again each time you
+// change Space: set only once, macOS can leave her behind on the desktop when a window goes full screen.
+function followSpace() {
+  if (!mac.MAC || quitting || !overlay || overlay.isDestroyed()) return;
+  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+  overlay.setAlwaysOnTop(true, 'screen-saver');
+  if (!overlay.isVisible()) overlay.showInactive();
+  windowWatch?.refresh();
 }
 
 function sendOverlay(channel, payload) {
@@ -327,7 +339,7 @@ function rendererConfig() {
   const { apiKeys, ...cfg } = config.load(); // the keys stay here: the overlay only learns which ones are set
   return {
     ...cfg, keys: Object.keys(apiKeys || {}), assistant: activeAssistant().id, lang: resolveLang(cfg.lang), langSetting: cfg.lang,
-    floorGap: overlayArea().gap, platform: process.platform,
+    floorGap: overlayArea().gap, platform: process.platform, fishKey: Boolean(fishKey(cfg)),
   };
 }
 
@@ -359,6 +371,14 @@ function rebuildTray() {
   // on a Mac she rests on the Dock, not a taskbar
   const DOCK = { fr: 'Assise sur le Dock', en: 'Sitting on the Dock', es: 'Sentada en el Dock', pt: 'Sentada no Dock', ru: 'Сидит на Dock' };
   if (mac.MAC) t.restTaskbar = DOCK[resolveLang(cfg.lang)] || DOCK.en;
+  const VOICES = {
+    fr: { menu: 'Sa voix (Fish Audio)', on: 'Dire ses répliques à voix haute', key: 'Clé Fish Audio…', voice: 'Modèle de voix…', model: 'Modèle Fish Audio', modelDefault: 'Par défaut' },
+    en: { menu: 'Her voice (Fish Audio)', on: 'Say her lines out loud', key: 'Fish Audio key…', voice: 'Voice model…', model: 'Fish Audio model', modelDefault: 'Default' },
+    es: { menu: 'Su voz (Fish Audio)', on: 'Decir sus frases en voz alta', key: 'Clave de Fish Audio…', voice: 'Modelo de voz…', model: 'Modelo de Fish Audio', modelDefault: 'Por defecto' },
+    pt: { menu: 'A voz dela (Fish Audio)', on: 'Falar as frases em voz alta', key: 'Chave do Fish Audio…', voice: 'Modelo de voz…', model: 'Modelo do Fish Audio', modelDefault: 'Padrão' },
+    ru: { menu: 'Её голос (Fish Audio)', on: 'Произносить реплики вслух', key: 'Ключ Fish Audio…', voice: 'Модель голоса…', model: 'Модель Fish Audio', modelDefault: 'По умолчанию' },
+  };
+  const VOICE = VOICES[resolveLang(cfg.lang)] || VOICES.en;
   const TABS = { fr: 'La laisser fermer mes onglets…', en: 'Let her close my tabs…', es: 'Dejarla cerrar mis pestañas…', pt: 'Deixar ela fechar minhas abas…', ru: 'Разрешить ей закрывать вкладки…' };
   const tabsItem = mac.MAC ? [{ label: TABS[resolveLang(cfg.lang)] || TABS.en, click: allowTabs }] : [];
 
@@ -416,6 +436,21 @@ function rebuildTray() {
             fs.mkdirSync(userSoundsDir(), { recursive: true });
             shell.openPath(userSoundsDir());
           },
+        },
+      ],
+    },
+    {
+      label: VOICE.menu,
+      submenu: [
+        { label: VOICE.on, type: 'checkbox', checked: cfg.voice !== false && Boolean(fishKey(cfg)), enabled: Boolean(fishKey(cfg)), click: (item) => updateConfig({ voice: item.checked }) },
+        { type: 'separator' },
+        { label: VOICE.key, click: () => sendCommand('setupFishKey') },
+        { label: VOICE.voice, click: () => sendCommand('setupFishVoice') },
+        {
+          label: VOICE.model,
+          submenu: [['', VOICE.modelDefault], ...speech.MODELS.map((m) => [m, m])].map(([fishModel, label]) => ({
+            label, type: 'radio', checked: (cfg.fishModel || '') === fishModel, click: () => updateConfig({ fishModel }),
+          })),
         },
       ],
     },
@@ -746,6 +781,24 @@ async function pickProvider(provider) {
   if (chatErrorCode) sendCommand('setupKey'); // it needs a key or an address: she asks for it
 }
 
+// Her Fish Audio key: the one pasted in her panel (kept encrypted), else FISH_API_KEY
+function fishKey(cfg = config.load()) {
+  return setup.openKeys({ fish: cfg.apiKeys?.fish }).fish || process.env.FISH_API_KEY || '';
+}
+
+// A line out loud: { ok, audio } (mp3 bytes), or { ok: false, code, error }
+async function sayLine(text, { key, voice } = {}) {
+  const cfg = config.load();
+  try {
+    const audio = await speech.speak(text, {
+      key: key ?? fishKey(cfg), voice: voice ?? cfg.fishVoice, model: cfg.fishModel, language: resolveLang(cfg.lang),
+    });
+    return audio ? { ok: true, audio } : { ok: false, code: 'empty' };
+  } catch (err) {
+    return { ok: false, code: err.code || 'error', error: err.message };
+  }
+}
+
 // What llm.js gets: the config with its keys opened (they're kept encrypted, setup.js)
 function llmConfig(cfg = config.load()) {
   return { ...cfg, apiKeys: setup.openKeys(cfg.apiKeys) };
@@ -960,6 +1013,26 @@ function registerIpc() {
   ipcMain.handle('apps:site', (_e, address) => launch.site(address).catch(() => false));
   // closing browser tabs by what's in them (tabs.js, macOS)
   ipcMain.handle('tabs:close', (_e, query) => tabs.closeTabs(query).catch(() => null));
+  // her voice (speech.js): each line she says, through Fish Audio
+  ipcMain.handle('speech:say', (_e, text) => (config.load().voice === false ? { ok: false, code: 'off' } : sayLine(String(text || ''))));
+  // a key pasted in her panel: tried on a first line, kept (encrypted) only if Fish Audio takes it
+  ipcMain.handle('speech:setKey', async (_e, key) => {
+    const k = String(key || '').trim();
+    if (!k) return { ok: false, error: 'empty' };
+    const res = await sayLine('Online.', { key: k });
+    if (res.ok) updateConfig({ apiKeys: { ...config.load().apiKeys, fish: setup.sealKey(k) }, voice: true });
+    return res;
+  });
+  // a voice model's ID (or its page's address, fish.audio/m/<id>), tried first; '' for the default voice
+  ipcMain.handle('speech:setVoice', async (_e, id) => {
+    const text = String(id || '').trim();
+    const voice = /([0-9a-f]{32})/i.exec(text)?.[1] || (/^[\w-]{8,64}$/.test(text) ? text : '');
+    if (text && !voice) return { ok: false, error: 'not a voice model ID' };
+    const res = await sayLine('Online.', { voice });
+    if (res.ok) updateConfig({ fishVoice: voice });
+    return res;
+  });
+  ipcMain.on('speech:page', () => shell.openExternal('https://fish.audio/app/api-keys/'));
   // typing to her: the overlay takes the keyboard while the chat is open, and gives it back after
   ipcMain.on('overlay:focus', (_e, on) => {
     if (!overlay) return;
@@ -1191,6 +1264,7 @@ function main() {
         lastWindows = data;
         sendOverlay('windows:update', data);
       },
+      onSpace: followSpace, // macOS: you went to another Space (a full-screen app): she comes along
     });
     createBridge({
       port: PORT,

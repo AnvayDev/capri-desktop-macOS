@@ -542,6 +542,20 @@ var title: String?
 var titleOf = 0
 var titleAt = Date.distantPast
 
+// The window of app `pid` that's in front: its first one, unless that's a strip or popover lying
+// inside a bigger window of the same app (a full-screen browser's tab bar, shown in its own window).
+func frontWindow(_ wins: [Win], pid: pid_t) -> Win? {
+  let own = wins.filter { $0.pid == pid }
+  guard let first = own.first else { return nil }
+  let area = { (w: Win) -> CGFloat in w.rect.width * w.rect.height }
+  if first.rect.width >= 200 && first.rect.height >= 120,
+     !own.dropFirst().contains(where: { $0.rect.contains(first.rect) && area($0) >= area(first) * 2 }) {
+    return first
+  }
+  return own.dropFirst().first { $0.rect.contains(first.rect) && $0.rect.width >= 200 && $0.rect.height >= 120 }
+    ?? own.first { $0.rect.width >= 200 && $0.rect.height >= 120 } ?? first
+}
+
 func front() -> NSRunningApplication? {
   return NSRunningApplication(processIdentifier: frontPid)
 }
@@ -563,7 +577,7 @@ func snapshot() -> (String, Win?) {
   let wins = windowList(skip: overlayId)
   let app = front()
   // the window in front: the frontmost app's first window (Capri's own overlay when it's her)
-  let fg = wins.first { $0.pid == frontPid }
+  let fg = frontWindow(wins, pid: frontPid)
   var fgId = fg?.id ?? 0
   if fg == nil && frontPid == capriPid { fgId = overlayId }
   let t = frontTitle(fg)
@@ -603,7 +617,7 @@ func closePage(_ id: Int, _ key: String) -> String {
   guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != capriPid else { return "front" }
   let pid = app.processIdentifier
   let wins = windowList(skip: overlayId)
-  guard let fg = wins.first(where: { $0.pid == pid }), fg.id == id else { return "front" }
+  guard let fg = frontWindow(wins, pid: pid), fg.id == id else { return "front" }
   guard isBrowser(app) else { return "browser" }
   titleAt = Date.distantPast
   // read again right now, not the last tick's: a tab switch a moment ago must not close the wrong one
@@ -614,7 +628,7 @@ func closePage(_ id: Int, _ key: String) -> String {
   let code = keyCode("w", fallback: 13)
   // Accessibility may have taken time. Check the live foreground again, not the last timer tick.
   guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-        windowList(skip: overlayId).first(where: { $0.pid == pid })?.id == id else { return "front" }
+        frontWindow(windowList(skip: overlayId), pid: pid)?.id == id else { return "front" }
   let held = CGEventSource.flagsState(.combinedSessionState)
   if !held.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]).isEmpty { return "keys" }
   guard AXIsProcessTrusted() else { return "access" }
@@ -639,6 +653,11 @@ func listenForAsks() {
 
 func watch() {
   AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25) // a stuck app can't stall her
+  var spaces = 0
+  _ = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { _ in
+    spaces += 1
+    emit(json(["space": spaces]))
+  }
   _ = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
     if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
       frontPid = app.processIdentifier
